@@ -5,19 +5,17 @@ from .base_provider import BaseProvider
 
 
 class Aichat(BaseProvider):
-    url = "https://chat-gpt.org/chat"
-    working = True
+    url                   = "https://chat-gpt.org/chat"
+    working               = True
     supports_gpt_35_turbo = True
 
     @staticmethod
     def create_completion(
         model: str,
         messages: list[dict[str, str]],
-        stream: bool,
-        **kwargs: Any,
-    ) -> CreateResult:
+        stream: bool, **kwargs: Any) -> CreateResult:
+        
         base = ""
-
         for message in messages:
             base += "%s: %s\n" % (message["role"], message["content"])
         base += "assistant:"
@@ -40,9 +38,9 @@ class Aichat(BaseProvider):
 
         json_data = {
             "message": base,
-            "temperature": 1,
+            "temperature": kwargs.get('temperature', 0.5),
             "presence_penalty": 0,
-            "top_p": 1,
+            "top_p": kwargs.get('top_p', 1),
             "frequency_penalty": 0,
         }
 
@@ -52,4 +50,6 @@ class Aichat(BaseProvider):
             json=json_data,
         )
         response.raise_for_status()
+        if not response.json()['response']:
+            raise Exception("Error Response: " + response.json())
         yield response.json()["message"]
