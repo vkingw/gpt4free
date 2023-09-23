@@ -3,15 +3,23 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-import g4f
+import g4f, asyncio
 
-stream = False
-response = g4f.ChatCompletion.create(
-    model="gpt-3.5-turbo",
-    provider=g4f.Provider.Ails,
-    messages=[{"role": "user", "content": "hello"}],
-    stream=stream,
-    active_server=5,
-)
+print("create:", end=" ", flush=True)
+for response in g4f.ChatCompletion.create(
+    model=g4f.models.gpt_35_turbo,
+    provider=g4f.Provider.GptGo,
+    messages=[{"role": "user", "content": "hello!"}],
+):
+    print(response, end="", flush=True)
+print()
 
-print(response)
+async def run_async():
+    response = await g4f.ChatCompletion.create_async(
+        model=g4f.models.gpt_35_turbo,
+        provider=g4f.Provider.GptGo,
+        messages=[{"role": "user", "content": "hello!"}],
+    )
+    print("create_async:", response)
+
+asyncio.run(run_async())
