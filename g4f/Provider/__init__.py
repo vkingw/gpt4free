@@ -4,6 +4,7 @@ from .Aichat        import Aichat
 from .Ails          import Ails
 from .AiService     import AiService
 from .AItianhu      import AItianhu
+from .AItianhuSpace import AItianhuSpace
 from .Aivvm         import Aivvm
 from .Bard          import Bard
 from .Bing          import Bing
@@ -21,6 +22,7 @@ from .H2o           import H2o
 from .HuggingChat   import HuggingChat
 from .Liaobots      import Liaobots
 from .Lockchat      import Lockchat
+from .Myshell       import Myshell
 from .Opchatgpts    import Opchatgpts
 from .OpenaiChat    import OpenaiChat
 from .OpenAssistant import OpenAssistant
@@ -51,6 +53,7 @@ __all__ = [
     'Ails',
     'AiService',
     'AItianhu',
+    'AItianhuSpace',
     'Aivvm',
     'Bard',
     'Bing',
@@ -68,6 +71,7 @@ __all__ = [
     'HuggingChat',
     'Liaobots',
     'Lockchat',
+    'Myshell',
     'Opchatgpts',
     'Raycast',
     'OpenaiChat',

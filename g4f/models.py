@@ -17,14 +17,16 @@ from .Provider   import (
     Wewordle,
     Yqcloud,
     AItianhu,
+    AItianhuSpace,
     Aichat,
+    Myshell,
 )
 
 @dataclass(unsafe_hash=True)
 class Model:
     name: str
     base_provider: str
-    best_provider: Union[type[BaseProvider], tuple[type[BaseProvider]]] = None
+    best_provider: Union[type[BaseProvider], RetryProvider] = None
 
 # Config for HuggingChat, OpenAssistant
 # Works for Liaobots, H2o, OpenaiChat, Yqcloud, You
@@ -37,7 +39,7 @@ default = Model(
         Wewordle,     # Responds with markdown
         Yqcloud,      # Answers short questions in chinese
         ChatBase,     # Don't want to answer creatively
-        DeepAi, ChatgptLogin, ChatgptAi, Aivvm, GptGo, AItianhu, Aichat,
+        DeepAi, ChatgptLogin, ChatgptAi, Aivvm, GptGo, AItianhu, AItianhuSpace, Aichat, Myshell,
     ])
 )
 
@@ -46,7 +48,7 @@ gpt_35_turbo = Model(
     name          = 'gpt-3.5-turbo',
     base_provider = 'openai',
     best_provider = RetryProvider([
-        DeepAi, ChatgptLogin, ChatgptAi, Aivvm, GptGo, AItianhu, Aichat,
+        DeepAi, ChatgptLogin, ChatgptAi, Aivvm, GptGo, AItianhu, Aichat, AItianhuSpace, Myshell,
     ])
 )
 
@@ -54,7 +56,7 @@ gpt_4 = Model(
     name          = 'gpt-4',
     base_provider = 'openai',
     best_provider = RetryProvider([
-            Aivvm
+        Aivvm, Myshell, AItianhuSpace,
     ])
 )
 
@@ -153,8 +155,10 @@ gpt_35_turbo_16k_0613 = Model(
 gpt_35_turbo_0613 = Model(
     name          = 'gpt-3.5-turbo-0613',
     base_provider = 'openai',
-    best_provider = [
-        Aivvm, ChatgptLogin])
+    best_provider = RetryProvider([
+        Aivvm, ChatgptLogin
+    ])
+)
 
 gpt_4_0613 = Model(
     name          = 'gpt-4-0613',

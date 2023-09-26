@@ -3,6 +3,7 @@
 By using this repository or any code related to it, you agree to the [legal notice](./LEGAL_NOTICE.md). The author is not responsible for any copies, forks, reuploads made by other users, or anything else related to gpt4free. This is the author's only account and repository. To prevent impersonation or irresponsible actions, please comply with the GNU GPL license this Repository uses.
 
 ### New
+- official website: *https://g4f.ai*
 
 - pypi package:
 
@@ -133,6 +134,7 @@ docker compose down
 
 ### The `g4f` Package
 
+#### ChatCompletion
 ```py
 import g4f
 
@@ -171,7 +173,25 @@ response = g4f.ChatCompletion.create(
 for message in response:
     print(message)
 ```
+##### Completion
+```py
+import g4f
 
+allowed_models = [
+    'code-davinci-002',
+    'text-ada-001',
+    'text-babbage-001',
+    'text-curie-001',
+    'text-davinci-002',
+    'text-davinci-003'
+]
+
+response = g4f.Completion.create(
+    model  = 'text-davinci-003',
+    prompt = 'say this is a test')
+
+print(response)
+```
 
 ##### Providers:
 ```py
@@ -522,7 +542,8 @@ for message in response:
 ## Contributors
 
 A list of the contributors is available [here](https://github.com/xtekky/gpt4free/graphs/contributors)   
-The [`Vercel.py`](https://github.com/xtekky/gpt4free/blob/main/g4f/Provider/Vercel.py) file contains code from [vercel-llm-api](https://github.com/ading2210/vercel-llm-api) by [@ading2210](https://github.com/ading2210), which is licenced under the [GNU GPL v3](https://www.gnu.org/licenses/gpl-3.0.txt)
+The [`Vercel.py`](https://github.com/xtekky/gpt4free/blob/main/g4f/Provider/Vercel.py) file contains code from [vercel-llm-api](https://github.com/ading2210/vercel-llm-api) by [@ading2210](https://github.com/ading2210), which is licenced under the [GNU GPL v3](https://www.gnu.org/licenses/gpl-3.0.txt)   
+Top 1 Contributor: [@hlohaus](https://github.com/hlohaus)
 
 ## Copyright
 
