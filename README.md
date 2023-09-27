@@ -3,12 +3,15 @@
 By using this repository or any code related to it, you agree to the [legal notice](./LEGAL_NOTICE.md). The author is not responsible for any copies, forks, reuploads made by other users, or anything else related to gpt4free. This is the author's only account and repository. To prevent impersonation or irresponsible actions, please comply with the GNU GPL license this Repository uses.
 
 ### New
-- official website: *https://g4f.ai*
-
-- pypi package:
-
-```
+- official website: *https://g4f.ai*  
+- latest pypi version: ([0.1.4.0](https://pypi.org/project/g4f/0.1.4.0)):
+```sh
 pip install -U g4f
+```
+- check pypi version:
+```py
+import g4f
+print(g4f.version) # 0.1.X.X
 ```
 
 ## Table of Contents
