@@ -1,28 +1,33 @@
 from __future__ import annotations
 
-import asyncio
-import sys
+import asyncio, sys
 from asyncio import AbstractEventLoop
-
+from os import path
 import browser_cookie3
 
+# Change event loop policy on windows
+if sys.platform == 'win32':
+    if isinstance(
+        asyncio.get_event_loop_policy(), asyncio.WindowsProactorEventLoopPolicy
+    ):
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+# Local Cookie Storage
 _cookies: dict[str, dict[str, str]] = {}
 
-# Use own event_loop_policy with a selector event loop on windows.
-if sys.platform == 'win32':
-    _event_loop_policy = asyncio.WindowsSelectorEventLoopPolicy()
-else:
-    _event_loop_policy = asyncio.get_event_loop_policy()
-    
 # If event loop is already running, handle nested event loops
 # If "nest_asyncio" is installed, patch the event loop.
 def get_event_loop() -> AbstractEventLoop:
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return _event_loop_policy.get_event_loop()
+        try:
+            return asyncio.get_event_loop()
+        except RuntimeError:
+            asyncio.set_event_loop(asyncio.new_event_loop())
+            return asyncio.get_event_loop()
     try:
-        event_loop = _event_loop_policy.get_event_loop()
+        event_loop = asyncio.get_event_loop()
         if not hasattr(event_loop.__class__, "_nest_patched"):
             import nest_asyncio
             nest_asyncio.apply(event_loop)
@@ -52,3 +57,14 @@ def format_prompt(messages: list[dict[str, str]], add_special_tokens=False):
         return f"{formatted}\nAssistant:"
     else:
         return messages[0]["content"]
+    
+
+def get_browser(user_data_dir: str = None):
+    from undetected_chromedriver import Chrome
+    from platformdirs import user_config_dir
+
+    if not user_data_dir:
+        user_data_dir = user_config_dir("g4f")
+        user_data_dir = path.join(user_data_dir, "Default")
+
+    return Chrome(user_data_dir=user_data_dir)

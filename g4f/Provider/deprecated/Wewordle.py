@@ -3,12 +3,12 @@ from __future__ import annotations
 import random, string, time
 from aiohttp import ClientSession
 
-from .base_provider import AsyncProvider
+from ..base_provider import AsyncProvider
 
 
 class Wewordle(AsyncProvider):
     url                    = "https://wewordle.org"
-    working                = True
+    working                = False
     supports_gpt_35_turbo  = True
 
     @classmethod
