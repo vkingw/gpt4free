@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from aiohttp import ClientSession
 
+from ..typing import Messages
 from .base_provider import AsyncProvider, format_prompt
 
 
@@ -18,9 +19,8 @@ class ChatgptAi(AsyncProvider):
     async def create_async(
         cls,
         model: str,
-        messages: list[dict[str, str]],
+        messages: Messages,
         proxy: str = None,
-        timeout: int = 30,
         **kwargs
     ) -> str:
         headers = {
@@ -40,7 +40,7 @@ class ChatgptAi(AsyncProvider):
             "user-agent"         : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
         }
         async with ClientSession(
-            headers=headers, timeout=timeout
+            headers=headers
         ) as session:
             if not cls._nonce:
                 async with session.get(cls.url, proxy=proxy) as response:

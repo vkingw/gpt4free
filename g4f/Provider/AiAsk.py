@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from aiohttp import ClientSession
-from ..typing import AsyncGenerator
+from ..typing import AsyncResult, Messages
 from .base_provider import AsyncGeneratorProvider
 
 class AiAsk(AsyncGeneratorProvider):
@@ -11,16 +13,16 @@ class AiAsk(AsyncGeneratorProvider):
     async def create_async_generator(
         cls,
         model: str,
-        messages: list[dict[str, str]],
-        timeout: int = 30,
+        messages: Messages,
+        proxy: str = None,
         **kwargs
-    ) -> AsyncGenerator:
+    ) -> AsyncResult:
         headers = {
             "accept": "application/json, text/plain, */*",
             "origin": cls.url,
             "referer": f"{cls.url}/chat",
         }
-        async with ClientSession(headers=headers, timeout=timeout) as session:
+        async with ClientSession(headers=headers) as session:
             data = {
                 "continuous": True,
                 "id": "fRMSQtuHl91A4De9cCvKD",
@@ -32,7 +34,7 @@ class AiAsk(AsyncGeneratorProvider):
             }
             buffer = ""
             rate_limit = "您的免费额度不够使用这个模型啦，请点击右上角登录继续使用！"
-            async with session.post(f"{cls.url}/v1/chat/gpt/", json=data) as response:
+            async with session.post(f"{cls.url}/v1/chat/gpt/", json=data, proxy=proxy) as response:
                 response.raise_for_status()
                 async for chunk in response.content.iter_any():
                     buffer += chunk.decode()

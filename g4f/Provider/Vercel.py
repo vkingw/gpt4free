@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json, base64, requests, execjs, random, uuid
 
-from ..typing       import Any, TypedDict, CreateResult
+from ..typing       import Messages, TypedDict, CreateResult, Any
 from .base_provider import BaseProvider
 from abc            import abstractmethod
+from ..debug        import logging
 
 
 class Vercel(BaseProvider):
@@ -17,15 +18,16 @@ class Vercel(BaseProvider):
     @abstractmethod
     def create_completion(
         model: str,
-        messages: list[dict[str, str]],
+        messages: Messages,
         stream: bool,
-        **kwargs
-    ) -> CreateResult:
+        proxy: str = None, **kwargs) -> CreateResult:
+        
         if not model:
             model = "gpt-3.5-turbo"
+        
         elif model not in model_info:
-            raise ValueError(f"Model are not supported: {model}")
-
+            raise ValueError(f"Vercel does not support {model}")
+        
         headers = {
             'authority'         : 'sdk.vercel.ai',
             'accept'            : '*/*',
@@ -52,15 +54,18 @@ class Vercel(BaseProvider):
             'model'       : model_info[model]['id'],
             'messages'    : messages,
             'playgroundId': str(uuid.uuid4()),
-            'chatIndex'   : 0} | model_info[model]['default_params']
+            'chatIndex'   : 0,
+            **model_info[model]['default_params'],
+            **kwargs
+        }
 
         max_retries  = kwargs.get('max_retries', 20)
         for i in range(max_retries):
             response = requests.post('https://sdk.vercel.ai/api/generate', 
-                                    headers=headers, json=json_data, stream=True)
+                                    headers=headers, json=json_data, stream=True, proxies={"https": proxy})
             try:
                 response.raise_for_status()
-            except:
+            except Exception:
                 continue
             for token in response.iter_content(chunk_size=None):
                 yield token.decode()
@@ -106,40 +111,49 @@ class ModelInfo(TypedDict):
     default_params: dict[str, Any]
 
 model_info: dict[str, ModelInfo] = {
-    'claude-instant-v1': {
-        'id': 'anthropic:claude-instant-v1',
+    # 'claude-instant-v1': {
+    #     'id': 'anthropic:claude-instant-v1',
+    #     'default_params': {
+    #         'temperature': 1,
+    #         'maximumLength': 1024,
+    #         'topP': 1,
+    #         'topK': 1,
+    #         'presencePenalty': 1,
+    #         'frequencyPenalty': 1,
+    #         'stopSequences': ['\n\nHuman:'],
+    #     },
+    # },
+    # 'claude-v1': {
+    #     'id': 'anthropic:claude-v1',
+    #     'default_params': {
+    #         'temperature': 1,
+    #         'maximumLength': 1024,
+    #         'topP': 1,
+    #         'topK': 1,
+    #         'presencePenalty': 1,
+    #         'frequencyPenalty': 1,
+    #         'stopSequences': ['\n\nHuman:'],
+    #     },
+    # },
+    # 'claude-v2': {
+    #     'id': 'anthropic:claude-v2',
+    #     'default_params': {
+    #         'temperature': 1,
+    #         'maximumLength': 1024,
+    #         'topP': 1,
+    #         'topK': 1,
+    #         'presencePenalty': 1,
+    #         'frequencyPenalty': 1,
+    #         'stopSequences': ['\n\nHuman:'],
+    #     },
+    # },
+    'replicate/llama70b-v2-chat': {
+        'id': 'replicate:replicate/llama-2-70b-chat',
         'default_params': {
-            'temperature': 1,
-            'maximumLength': 1024,
+            'temperature': 0.75,
+            'maximumLength': 3000,
             'topP': 1,
-            'topK': 1,
-            'presencePenalty': 1,
-            'frequencyPenalty': 1,
-            'stopSequences': ['\n\nHuman:'],
-        },
-    },
-    'claude-v1': {
-        'id': 'anthropic:claude-v1',
-        'default_params': {
-            'temperature': 1,
-            'maximumLength': 1024,
-            'topP': 1,
-            'topK': 1,
-            'presencePenalty': 1,
-            'frequencyPenalty': 1,
-            'stopSequences': ['\n\nHuman:'],
-        },
-    },
-    'claude-v2': {
-        'id': 'anthropic:claude-v2',
-        'default_params': {
-            'temperature': 1,
-            'maximumLength': 1024,
-            'topP': 1,
-            'topK': 1,
-            'presencePenalty': 1,
-            'frequencyPenalty': 1,
-            'stopSequences': ['\n\nHuman:'],
+            'repetitionPenalty': 1,
         },
     },
     'a16z-infra/llama7b-v2-chat': {
@@ -250,28 +264,28 @@ model_info: dict[str, ModelInfo] = {
             'stopSequences': [],
         },
     },
-    'gpt-4': {
-        'id': 'openai:gpt-4',
-        'default_params': {
-            'temperature': 0.7,
-            'maximumLength': 8192,
-            'topP': 1,
-            'presencePenalty': 0,
-            'frequencyPenalty': 0,
-            'stopSequences': [],
-        },
-    },
-    'gpt-4-0613': {
-        'id': 'openai:gpt-4-0613',
-        'default_params': {
-            'temperature': 0.7,
-            'maximumLength': 8192,
-            'topP': 1,
-            'presencePenalty': 0,
-            'frequencyPenalty': 0,
-            'stopSequences': [],
-        },
-    },
+    # 'gpt-4': {
+    #     'id': 'openai:gpt-4',
+    #     'default_params': {
+    #         'temperature': 0.7,
+    #         'maximumLength': 8192,
+    #         'topP': 1,
+    #         'presencePenalty': 0,
+    #         'frequencyPenalty': 0,
+    #         'stopSequences': [],
+    #     },
+    # },
+    # 'gpt-4-0613': {
+    #     'id': 'openai:gpt-4-0613',
+    #     'default_params': {
+    #         'temperature': 0.7,
+    #         'maximumLength': 8192,
+    #         'topP': 1,
+    #         'presencePenalty': 0,
+    #         'frequencyPenalty': 0,
+    #         'stopSequences': [],
+    #     },
+    # },
     'code-davinci-002': {
         'id': 'openai:code-davinci-002',
         'default_params': {

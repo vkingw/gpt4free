@@ -2,29 +2,25 @@ from __future__ import annotations
 
 from aiohttp import ClientSession
 
-from ..typing       import AsyncGenerator
+from ..typing       import AsyncResult, Messages
 from .base_provider import AsyncGeneratorProvider
 
 
 class ChatBase(AsyncGeneratorProvider):
     url                   = "https://www.chatbase.co"
     supports_gpt_35_turbo = True
-    supports_gpt_4        = True
     working               = True
 
     @classmethod
     async def create_async_generator(
         cls,
         model: str,
-        messages: list[dict[str, str]],
+        messages: Messages,
+        proxy: str = None,
         **kwargs
-    ) -> AsyncGenerator:
-        if model == "gpt-4":
-            chat_id = "quran---tafseer-saadi-pdf-wbgknt7zn"
-        elif model == "gpt-3.5-turbo" or not model:
-            chat_id = "chatbase--1--pdf-p680fxvnm"
-        else:
-            raise ValueError(f"Model are not supported: {model}")
+    ) -> AsyncResult:
+        chat_id = 'z2c2HSfKnCTh5J4650V0I'
+        
         headers = {
             "User-Agent"         : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
             "Accept"             : "*/*",
@@ -35,20 +31,18 @@ class ChatBase(AsyncGeneratorProvider):
             "Sec-Fetch-Mode"     : "cors",
             "Sec-Fetch-Site"     : "same-origin",
         }
-        async with ClientSession(
-            headers=headers
-        ) as session:
+        async with ClientSession(headers=headers) as session:
             data = {
                 "messages": messages,
                 "captchaCode": "hadsa",
                 "chatId": chat_id,
                 "conversationId": f"kcXpqEnqUie3dnJlsRi_O-{chat_id}"
             }
-            async with session.post("https://www.chatbase.co/api/fe/chat", json=data) as response:
+            
+            async with session.post("https://www.chatbase.co/api/fe/chat", json=data, proxy=proxy) as response:
                 response.raise_for_status()
                 async for stream in response.content.iter_any():
                     yield stream.decode()
-
 
     @classmethod
     @property
