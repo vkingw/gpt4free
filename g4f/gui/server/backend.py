@@ -35,9 +35,7 @@ class Backend_Api:
         return 'ok', 200
     
     def models(self):
-        models = g4f._all_models
-        
-        return models
+        return g4f._all_models
     
     def _gen_title(self):
         return {
@@ -46,25 +44,25 @@ class Backend_Api:
     
     def _conversation(self):
         try:
-            jailbreak       = request.json['jailbreak']
-            internet_access = request.json['meta']['content']['internet_access']
-            conversation    = request.json['meta']['content']['conversation']
-            prompt          = request.json['meta']['content']['parts'][0]
+            #jailbreak       = request.json['jailbreak']
+            #internet_access = request.json['meta']['content']['internet_access']
+            #conversation    = request.json['meta']['content']['conversation']
+            prompt          = request.json['meta']['content']['parts']
             model           = request.json['model']
             provider        = request.json.get('provider').split('g4f.Provider.')[1]
-            
-            messages = special_instructions[jailbreak] + conversation + search(internet_access, prompt) + [prompt]
-            
+
+            messages = prompt
+            print(messages)
+
             def stream():
-                if provider:
-                    answer = g4f.ChatCompletion.create(model=model,
-                                                       provider=get_provider(provider), messages=messages, stream=True)
-                else:
-                    answer = g4f.ChatCompletion.create(model=model,
-                                                       messages=messages, stream=True)
-                
-                for token in answer:
-                    yield token
+                yield from g4f.ChatCompletion.create(
+                    model=model,
+                    provider=get_provider(provider),
+                    messages=messages,
+                    stream=True,
+                ) if provider else g4f.ChatCompletion.create(
+                    model=model, messages=messages, stream=True
+                )
 
             return self.app.response_class(stream(), mimetype='text/event-stream')
 

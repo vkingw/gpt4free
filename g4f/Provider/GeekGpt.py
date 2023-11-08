@@ -7,26 +7,31 @@ from json           import dumps
 
 
 class GeekGpt(BaseProvider):
-    url                   = 'https://chat.geekgpt.org'
-    supports_stream       = True
-    working               = True
+    url = 'https://chat.geekgpt.org'
+    working = True
+    supports_message_history = True
+    supports_stream = True
     supports_gpt_35_turbo = True
-    supports_gpt_4        = True
+    supports_gpt_4 = True
 
     @classmethod
-    def create_completion(cls,
-                        model: str,
-                        messages: Messages,
-                        stream: bool, **kwargs) -> CreateResult:
-
+    def create_completion(
+        cls,
+        model: str,
+        messages: Messages,
+        stream: bool,
+        **kwargs
+    ) -> CreateResult:
+        if not model:
+            model = "gpt-3.5-turbo"
         json_data = {
             'messages': messages,
-                'model': model,
-                'temperature': kwargs.get('temperature', 0.9),
-                'presence_penalty': kwargs.get('presence_penalty', 0),
-                'top_p': kwargs.get('top_p', 1),
-                'frequency_penalty': kwargs.get('frequency_penalty', 0),
-                'stream': True
+            'model': model,
+            'temperature': kwargs.get('temperature', 0.9),
+            'presence_penalty': kwargs.get('presence_penalty', 0),
+            'top_p': kwargs.get('top_p', 1),
+            'frequency_penalty': kwargs.get('frequency_penalty', 0),
+            'stream': True
         }
 
         data = dumps(json_data, separators=(',', ':'))
@@ -61,7 +66,6 @@ class GeekGpt(BaseProvider):
                 
                 try:
                     content = json.loads(json_data)["choices"][0]["delta"].get("content")
-                
                 except Exception as e:
                     raise RuntimeError(f'error | {e} :', json_data)
                 

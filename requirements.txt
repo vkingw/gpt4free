@@ -6,8 +6,6 @@ certifi
 browser_cookie3
 websockets
 js2py
-flask
-flask-cors
 typing-extensions
 PyExecJS
 duckduckgo-search
@@ -16,3 +14,10 @@ waitress
 werkzeug
 loguru
 tiktoken
+pillow
+platformdirs
+numpy
+asgiref
+fastapi
+uvicorn
+flask

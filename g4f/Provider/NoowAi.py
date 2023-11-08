@@ -8,9 +8,10 @@ from .base_provider import AsyncGeneratorProvider
 
 
 class NoowAi(AsyncGeneratorProvider):
-    url                   = "https://noowai.com"
+    url = "https://noowai.com"
+    supports_message_history = True
     supports_gpt_35_turbo = True
-    working               = True
+    working = True
 
     @classmethod
     async def create_async_generator(
@@ -61,6 +62,8 @@ class NoowAi(AsyncGeneratorProvider):
                             yield line["data"]
                         elif line["type"] == "end":
                             break
+                        elif line["type"] == "error":
+                            raise RuntimeError(line["data"])
                 
 def random_string(length: int = 10):
     return ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(length))
