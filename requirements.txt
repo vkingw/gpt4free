@@ -21,3 +21,4 @@ asgiref
 fastapi
 uvicorn
 flask
+py-arkose-generator
