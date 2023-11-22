@@ -3,24 +3,26 @@ from dataclasses import dataclass
 from .typing     import Union
 from .Provider   import BaseProvider, RetryProvider
 from .Provider   import (
+    Chatgpt4Online,
+    ChatgptDemoAi,
+    ChatAnywhere,
+    ChatgptNext,
     GptForLove,
     ChatgptAi,
     DeepInfra,
+    OnlineGpt,
     ChatgptX,
     ChatBase,
+    Liaobots,
     GeekGpt,
     FakeGpt,
     FreeGpt,
-    NoowAi,
     Berlin,
     Llama2,
     Vercel, 
-    Aichat,
-    GPTalk,
-    Koala,
-    AiAsk,
-    GptGo,
     Phind,
+    Koala,
+    GptGo,
     Bard, 
     Bing,
     You,
@@ -41,20 +43,27 @@ default = Model(
     name          = "",
     base_provider = "",
     best_provider = RetryProvider([
-        Bing,         # Not fully GPT 3 or 4
-        AiAsk, Aichat, ChatgptAi, FreeGpt, GptGo, GeekGpt,
-        Phind, You
+        Bing,
+        ChatgptAi, GptGo, GeekGpt,
+        You,
+        Chatgpt4Online,
+        ChatAnywhere,
     ])
 )
 
-# GPT-3.5 too, but all providers supports long responses and a custom timeouts
+# GPT-3.5 too, but all providers supports long requests and responses
 gpt_35_long = Model(
     name          = 'gpt-3.5-turbo',
     base_provider = 'openai',
     best_provider = RetryProvider([
         FreeGpt, You,
         GeekGpt, FakeGpt,
-        Berlin, Koala
+        Berlin, Koala,
+        Chatgpt4Online,
+        ChatAnywhere,
+        ChatgptDemoAi,
+        OnlineGpt,
+        ChatgptNext,
     ])
 )
 
@@ -64,7 +73,9 @@ gpt_35_turbo = Model(
     base_provider = 'openai',
     best_provider=RetryProvider([
         ChatgptX, GptGo, You, 
-        NoowAi, GPTalk, GptForLove, Phind, ChatBase
+        GptForLove, ChatBase,
+        Chatgpt4Online,
+        ChatAnywhere,
     ])
 )
 
@@ -72,7 +83,7 @@ gpt_4 = Model(
     name          = 'gpt-4',
     base_provider = 'openai',
     best_provider = RetryProvider([
-        Bing, GeekGpt, Phind
+        Bing, Phind, Liaobots
     ])
 )
 

@@ -12,6 +12,8 @@ class ChatBase(AsyncGeneratorProvider):
     supports_message_history = True
     working = True
     jailbreak = True
+    list_incorrect_responses = ["support@chatbase",
+                                "about Chatbase"]
 
     @classmethod
     async def create_async_generator(
@@ -53,15 +55,7 @@ class ChatBase(AsyncGeneratorProvider):
                 response_data = ""
                 async for stream in response.content.iter_any():
                     response_data += stream.decode()
+                    for incorrect_response in cls.list_incorrect_responses:
+                        if incorrect_response in response_data:
+                            raise RuntimeError("Incorrect response")
                     yield stream.decode()
-
-    @classmethod
-    @property
-    def params(cls):
-        params = [
-            ("model", "str"),
-            ("messages", "list[dict[str, str]]"),
-            ("stream", "bool"),
-        ]
-        param = ", ".join([": ".join(p) for p in params])
-        return f"g4f.provider.{cls.__name__} supports: ({param})"
