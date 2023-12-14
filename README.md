@@ -1,4 +1,5 @@
 ![248433934-7886223b-c1d1-4260-82aa-da5741f303bb](https://github.com/xtekky/gpt4free/assets/98614666/ea012c87-76e0-496a-8ac4-e2de090cc6c9)
+Written by [@xtekky](https://github.com/hlohaus) & maintained by [@hlohaus](https://github.com/hlohaus)
 
 <a href='https://ko-fi.com/xtekky' target='_blank'><img height='35' style='border:0px;height:46px;' src='https://az743702.vo.msecnd.net/cdn/kofi3.png?v=0' border='0' alt='Buy Me a Coffee at ko-fi.com' />
 <div id="top"></div>
@@ -24,34 +25,35 @@ docker pull hlohaus789/g4f
 
 - [🆕 What's New](#-whats-new)
 - [📚 Table of Contents](#-table-of-contents)
-- [🛠️ Getting Started](#️-getting-started)
-    - [Prerequisites:](#prerequisites)
-    - [Setting up the project:](#setting-up-the-project)
+- [🛠️ Getting Started](#-getting-started)
+    + [Docker container](#docker-container)
+      - [Quick start](#quick-start)
+    + [Use python package](#use-python-package)
+      - [Prerequisites](#prerequisites)
       - [Install using pypi](#install-using-pypi)
-      - [or](#or)
-      - [Setting up with Docker:](#setting-up-with-docker)
+    + [Docker for Developers](#docker-for-developers)
 - [💡 Usage](#-usage)
-  - [The `g4f` Package](#the-g4f-package)
-    - [ChatCompletion](#chatcompletion)
+  * [The `g4f` Package](#the-g4f-package)
+    + [ChatCompletion](#chatcompletion)
       - [Completion](#completion)
       - [Providers](#providers)
-      - [Cookies Required](#cookies-required)
+      - [Using Browser](#using-browser)
       - [Async Support](#async-support)
       - [Proxy and Timeout Support](#proxy-and-timeout-support)
-  - [Interference openai-proxy API (Use with openai python package)](#interference-openai-proxy-api-use-with-openai-python-package)
-    - [Run interference API from PyPi package](#run-interference-api-from-pypi-package)
-    - [Run interference API from repo](#run-interference-api-from-repo)
+  * [Interference openai-proxy API](#interference-openai-proxy-api-use-with-openai-python-package-)
+    + [Run interference API from PyPi package](#run-interference-api-from-pypi-package)
+    + [Run interference API from repo](#run-interference-api-from-repo)
 - [🚀 Providers and Models](#-providers-and-models)
-  - [GPT-4](#gpt-4)
-  - [GPT-3.5](#gpt-35)
-  - [Other](#other)
-  - [Models](#models)
+  * [GPT-4](#gpt-4)
+  * [GPT-3.5](#gpt-35)
+  * [Other](#other)
+  * [Models](#models)
 - [🔗 Related GPT4Free Projects](#-related-gpt4free-projects)
 - [🤝 Contribute](#-contribute)
-    - [Create Provider with AI Tool](#create-provider-with-ai-tool)
-    - [Create Provider](#create-provider)
+    + [Create Provider with AI Tool](#create-provider-with-ai-tool)
+    + [Create Provider](#create-provider)
 - [🙌 Contributors](#-contributors)
-- [©️ Copyright](#️-copyright)
+- [©️ Copyright](#-copyright)
 - [⭐ Star History](#-star-history)
 - [📄 License](#-license)
 
@@ -68,9 +70,9 @@ docker pull hlohaus789/g4f
 docker pull hlohaus789/g4f
 docker run -p 8080:80 -p 1337:1337 -p 7900:7900 --shm-size="2g" hlohaus789/g4f:latest
 ```
-5. Open the included client on: [http://localhost:8080/chat/](http://localhost:8080/chat/)
+3. Open the included client on: [http://localhost:8080/chat/](http://localhost:8080/chat/)
 or set the api base in your client to: [http://localhost:1337/v1](http://localhost:1337/v1)
-6. (Optional) If you need to log in to a provider, you can open the desktop in the container here: http://localhost:7900/?autoconnect=1&resize=scale&password=secret.
+4. (Optional) If you need to log in to a provider, you can view the desktop from the container here: http://localhost:7900/?autoconnect=1&resize=scale&password=secret.
 
 #### Use python package
 
@@ -252,7 +254,7 @@ for message in response:
 
 ##### Using Browser
 
-Some providers using a a browser to bypass the bot protection. They using the selenium webdriver to control the browser. The browser settings and the login data are saved in a custom directory. If the headless mode is enabled, the browser windows are loaded invisibly. For performance reasons, it is recommended to reuse the browser instances and close them yourself at the end:
+Some providers using a browser to bypass the bot protection. They using the selenium webdriver to control the browser. The browser settings and the login data are saved in a custom directory. If the headless mode is enabled, the browser windows are loaded invisibly. For performance reasons, it is recommended to reuse the browser instances and close them yourself at the end:
 
 ```python
 import g4f
@@ -332,6 +334,12 @@ response = g4f.ChatCompletion.create(
 )
 
 print(f"Result:", response)
+```
+
+You can also set a proxy globally via an environment variable:
+
+```sh
+export G4F_PROXY="http://host:port"
 ```
 
 ### Interference openai-proxy API (Use with openai python package)

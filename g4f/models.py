@@ -48,7 +48,7 @@ default = Model(
         ChatgptAi, GptGo, GeekGpt,
         You,
         Chatgpt4Online,
-        ChatAnywhere,
+        ChatAnywhere
     ])
 )
 
@@ -102,6 +102,17 @@ llama2_70b = Model(
     name          = "meta-llama/Llama-2-70b-chat-hf",
     base_provider = "huggingface",
     best_provider = RetryProvider([Llama2, DeepInfra, HuggingChat]))
+
+# Mistal
+mixtral_8x7b = Model(
+    name          = "mistralai/Mixtral-8x7B-Instruct-v0.1",
+    base_provider = "huggingface",
+    best_provider = HuggingChat)
+
+mistral_7b = Model(
+    name          = "mistralai/Mistral-7B-Instruct-v0.1",
+    base_provider = "huggingface",
+    best_provider = HuggingChat)
 
 # Bard
 palm = Model(
@@ -287,6 +298,10 @@ class ModelUtils:
         'llama2-7b' : llama2_7b,
         'llama2-13b': llama2_13b,
         'llama2-70b': llama2_70b,
+        
+        # Mistral
+        'mixtral-8x7b': mixtral_8x7b,
+        'mistral-7b': mistral_7b,
         
         # Bard
         'palm2'       : palm,
