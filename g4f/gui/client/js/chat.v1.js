@@ -20,7 +20,10 @@ message_input.addEventListener("focus", () => {
 });
 
 const markdown_render = (content) => {
-    return markdown.render(content)
+    return markdown.render(content
+        .replaceAll(/<!--.+-->/gm, "")
+        .replaceAll(/<img data-prompt="[^>]+">/gm, "")
+    )
         .replaceAll("<a href=", '<a target="_blank" href=')
         .replaceAll('<code>', '<code class="language-plaintext">')
 }
@@ -68,6 +71,15 @@ const ask_gpt = async () => {
     regenerate.classList.add(`regenerate-hidden`);
     messages = await get_messages(window.conversation_id);
 
+    // Remove generated images from history
+    for (i in messages) {
+        messages[i]["content"] = messages[i]["content"].replaceAll(
+            /<!-- generated images start -->[\s\S]+<!-- generated images end -->/gm,
+            ""
+        )
+        delete messages[i]["provider"];
+    }
+
     window.scrollTo(0, 0);
     window.controller = new AbortController();
 
@@ -91,7 +103,8 @@ const ask_gpt = async () => {
             </div>
             <div class="content" id="gpt_${window.token}">
                 <div class="provider"></div>
-                <div class="content_inner"><div id="cursor"></div></div>
+                <div class="content_inner"></div>
+                <div id="cursor"></div>
             </div>
         </div>
     `;
@@ -115,6 +128,7 @@ const ask_gpt = async () => {
                 jailbreak: jailbreak.options[jailbreak.selectedIndex].value,
                 internet_access: document.getElementById(`switch`).checked,
                 provider: provider.options[provider.selectedIndex].value,
+                patch_provider: document.getElementById('patch').checked,
                 meta: {
                     id: window.token,
                     content: {
@@ -163,8 +177,6 @@ const ask_gpt = async () => {
     } catch (e) {
         console.log(e);
 
-        let cursorDiv = document.getElementById(`cursor`);
-        if (cursorDiv) cursorDiv.parentNode.removeChild(cursorDiv);
 
         if (e.name != `AbortError`) {
             text = `oops ! something went wrong, please try again / reload. [stacktrace in console]`;
@@ -174,6 +186,8 @@ const ask_gpt = async () => {
             text += ` [aborted]`
         }
     }
+    let cursorDiv = document.getElementById(`cursor`);
+    if (cursorDiv) cursorDiv.parentNode.removeChild(cursorDiv);
     add_message(window.conversation_id, "assistant", text, provider);
     message_box.scrollTop = message_box.scrollHeight;
     await remove_cancel_button();
@@ -304,7 +318,7 @@ const get_conversation = async (conversation_id) => {
 
 const get_messages = async (conversation_id) => {
     let conversation = await get_conversation(conversation_id);
-    return conversation.items;
+    return conversation?.items || [];
 };
 
 const add_conversation = async (conversation_id, content) => {
@@ -430,7 +444,7 @@ document.querySelector(".mobile-sidebar").addEventListener("click", (event) => {
 });
 
 const register_settings_localstorage = async () => {
-    settings_ids = ["switch", "model", "jailbreak"];
+    settings_ids = ["switch", "model", "jailbreak", "patch", "provider"];
     settings_elements = settings_ids.map((id) => document.getElementById(id));
     settings_elements.map((element) =>
         element.addEventListener(`change`, async (event) => {
@@ -449,9 +463,8 @@ const register_settings_localstorage = async () => {
 };
 
 const load_settings_localstorage = async () => {
-    settings_ids = ["switch", "model", "jailbreak"];
-    settings_elements = settings_ids.map((id) => document.getElementById(id));
-    settings_elements.map((element) => {
+    for (id of ["switch", "model", "jailbreak", "patch", "provider"]) {
+        element = document.getElementById(id);
         if (localStorage.getItem(element.id)) {
             switch (element.type) {
                 case "checkbox":
@@ -464,8 +477,8 @@ const load_settings_localstorage = async () => {
                     console.warn("Unresolved element type");
             }
         }
-    });
-};
+    }
+}
 
 const say_hello = async () => {
     tokens = [`Hello`, `!`, ` How`,` can`, ` I`,` assist`,` you`,` today`,`?`]
