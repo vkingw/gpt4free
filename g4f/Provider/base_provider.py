@@ -1,13 +1,15 @@
 from __future__ import annotations
+
 import sys
 import asyncio
 from asyncio import AbstractEventLoop
 from concurrent.futures import ThreadPoolExecutor
 from abc import abstractmethod
 from inspect import signature, Parameter
-from .helper import get_event_loop, get_cookies, format_prompt
-from ..typing import CreateResult, AsyncResult, Messages
+from .helper import get_cookies, format_prompt
+from ..typing import CreateResult, AsyncResult, Messages, Union
 from ..base_provider import BaseProvider
+from ..errors import NestAsyncioError, ModelNotSupportedError
 
 if sys.version_info < (3, 10):
     NoneType = type(None)
@@ -18,6 +20,17 @@ else:
 if sys.platform == 'win32':
     if isinstance(asyncio.get_event_loop_policy(), asyncio.WindowsProactorEventLoopPolicy):
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+def get_running_loop() -> Union[AbstractEventLoop, None]:
+    try:
+        loop = asyncio.get_running_loop()
+        if not hasattr(loop.__class__, "_nest_patched"):
+            raise NestAsyncioError(
+                'Use "create_async" instead of "create" function in a running event loop. Or use "nest_asyncio" package.'
+            )
+        return loop
+    except RuntimeError:
+        pass
 
 class AbstractProvider(BaseProvider):
     """
@@ -48,14 +61,14 @@ class AbstractProvider(BaseProvider):
         Returns:
             str: The created result as a string.
         """
-        loop = loop or get_event_loop()
+        loop = loop or asyncio.get_running_loop()
 
         def create_func() -> str:
             return "".join(cls.create_completion(model, messages, False, **kwargs))
 
         return await asyncio.wait_for(
             loop.run_in_executor(executor, create_func),
-            timeout=kwargs.get("timeout", 0)
+            timeout=kwargs.get("timeout")
         )
     
     @classmethod
@@ -101,8 +114,6 @@ class AsyncProvider(AbstractProvider):
         model: str,
         messages: Messages,
         stream: bool = False,
-        *,
-        loop: AbstractEventLoop = None,
         **kwargs
     ) -> CreateResult:
         """
@@ -119,9 +130,8 @@ class AsyncProvider(AbstractProvider):
         Returns:
             CreateResult: The result of the completion creation.
         """
-        loop = loop or get_event_loop()
-        coro = cls.create_async(model, messages, **kwargs)
-        yield loop.run_until_complete(coro)
+        get_running_loop()
+        yield asyncio.run(cls.create_async(model, messages, **kwargs))
 
     @staticmethod
     @abstractmethod
@@ -159,8 +169,6 @@ class AsyncGeneratorProvider(AsyncProvider):
         model: str,
         messages: Messages,
         stream: bool = True,
-        *,
-        loop: AbstractEventLoop = None,
         **kwargs
     ) -> CreateResult:
         """
@@ -177,7 +185,13 @@ class AsyncGeneratorProvider(AsyncProvider):
         Returns:
             CreateResult: The result of the streaming completion creation.
         """
-        loop = loop or get_event_loop()
+        loop = get_running_loop()
+        new_loop = False
+        if not loop:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            new_loop = True
+
         generator = cls.create_async_generator(model, messages, stream=stream, **kwargs)
         gen = generator.__aiter__()
 
@@ -186,6 +200,10 @@ class AsyncGeneratorProvider(AsyncProvider):
                 yield loop.run_until_complete(gen.__anext__())
             except StopAsyncIteration:
                 break
+
+        if new_loop:
+            loop.close()
+            asyncio.set_event_loop(None)
 
     @classmethod
     async def create_async(
@@ -235,3 +253,22 @@ class AsyncGeneratorProvider(AsyncProvider):
             AsyncResult: An asynchronous generator yielding results.
         """
         raise NotImplementedError()
+    
+class ProviderModelMixin:
+    default_model: str
+    models: list[str] = []
+    model_aliases: dict[str, str] = {}
+    
+    @classmethod
+    def get_models(cls) -> list[str]:
+        return cls.models
+    
+    @classmethod
+    def get_model(cls, model: str) -> str:
+        if not model:
+            return cls.default_model
+        elif model in cls.model_aliases:
+            return cls.model_aliases[model]
+        elif model not in cls.get_models():
+            raise ModelNotSupportedError(f"Model is not supported: {model} in: {cls.__name__}")
+        return model

@@ -18,6 +18,17 @@ pip install -U g4f
 ```sh
 docker pull hlohaus789/g4f
 ```
+# To do
+As per the survey, here is a list of improvements to come
+- [ ] Improve Documentation (on g4f.mintlify.app) & Do video tutorials
+- [ ] Improve the provider status list & updates
+- [ ] Tutorials on how to reverse sites to write your own wrapper (PoC only ofc)
+- [ ] Improve the Bing wrapper. (might write a new wrapper in golang as it is very fast)
+- [ ] Write a standard provider performance test to improve the stability
+- [ ] update the repository to include the new openai library syntax (ex: `Openai()` class)
+- [ ] Potential support and development of local models
+- [ ] improve compatibility and error handling
+
 
 ## 🆕 What's New
 - <a href="./README-DE.md"><img src="https://img.shields.io/badge/öffnen in-🇩🇪 deutsch-bleu.svg" alt="Öffnen en DE"></a>
@@ -37,6 +48,7 @@ docker pull hlohaus789/g4f
       - [Install using pypi](#install-using-pypi)
     + [Docker for Developers](#docker-for-developers)
 - [💡 Usage](#-usage)
+  * [The Web UI](#the-web-ui)
   * [The `g4f` Package](#the-g4f-package)
     + [ChatCompletion](#chatcompletion)
       - [Completion](#completion)
@@ -88,7 +100,7 @@ or set the api base in your client to: [http://localhost:1337/v1](http://localho
 ##### Install using pypi:
 
 ```
-pip install -U g4f
+pip install -U "g4f[all]"
 ```
 
 ##### or:
@@ -122,13 +134,19 @@ python3 -m venv venv
    ```
    source venv/bin/activate
    ```
-5. Install the required Python packages from `requirements.txt`:
+5. Install minimum requirements:
+
+```
+pip install -r requirements-min.txt
+```
+
+6. Or install all used Python packages from `requirements.txt`:
 
 ```
 pip install -r requirements.txt
 ```
 
-6. Create a `test.py` file in the root folder and start using the repo, further Instructions are below
+7. Create a `test.py` file in the root folder and start using the repo, further Instructions are below
 
 ```py
 import g4f
@@ -181,6 +199,14 @@ docker-compose down
 > When using Docker, any changes you make to your local files will be reflected in the Docker container thanks to the volume mapping in the `docker-compose.yml` file. If you add or remove dependencies, however, you'll need to rebuild the Docker image using `docker-compose build`.
 
 ## 💡 Usage
+
+### The Web UI
+
+To use it in the web interface, type the following codes in the command line.
+```python3
+from g4f.gui import run_gui
+run_gui()
+```
 
 ### The `g4f` Package
 
@@ -406,6 +432,26 @@ def main():
 if __name__ == "__main__":
     main()
 ```
+
+##  API usage (POST)
+#### Chat completions
+Send the POST request to /v1/chat/completions with body containing the `model` method. This example uses python with requests library:
+```python
+import requests
+url = "http://localhost:1337/v1/chat/completions"
+body = {
+    "model": "gpt-3.5-turbo-16k",
+    "stream": False,
+    "messages": [
+        {"role": "assistant", "content": "What can you do?"}
+    ]
+}
+json_response = requests.post(url, json=body).json().get('choices', [])
+
+for choice in json_response:
+    print(choice.get('message', {}).get('content', ''))
+```
+
 
 ## 🚀 Providers and Models
 
