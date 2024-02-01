@@ -59,6 +59,10 @@ const handle_ask = async () => {
                 </div>
                 <div class="content" id="user_${token}"> 
                     ${markdown_render(message)}
+                    ${imageInput.dataset.src
+                        ? '<img src="' + imageInput.dataset.src + '" alt="Image upload">'
+                        : ''
+                    }
                 </div>
             </div>
         `;
@@ -164,12 +168,16 @@ const ask_gpt = async () => {
             for (const line of value.split("\n")) {
                 if (!line) continue;
                 const message = JSON.parse(line);
-                if (message["type"] == "content") {
-                    text += message["content"];
+                if (message.type == "content") {
+                    text += message.content;
                 } else if (message["type"] == "provider") {
-                    provider = message["provider"];
-                    content.querySelector('.provider').innerHTML =
-                        '<a href="' + provider.url + '" target="_blank">' + provider.name + "</a>"
+                    provider = message.provider
+                    content.querySelector('.provider').innerHTML = `
+                        <a href="${provider.url}" target="_blank">
+                            ${provider.name}
+                        </a>
+                        ${provider.model ? ' with ' + provider.model : ''}
+                    `
                 } else if (message["type"] == "error") {
                     error = message["error"];
                 } else if (message["type"] == "message") {
@@ -662,6 +670,18 @@ observer.observe(message_input, { attributes: true });
 })()
 imageInput.addEventListener('click', async (event) => {
     imageInput.value = '';
+    delete imageInput.dataset.src;
+});
+imageInput.addEventListener('change', async (event) => {
+    if (imageInput.files.length) {
+        const reader = new FileReader();
+        reader.addEventListener('load', (event) => {
+            imageInput.dataset.src = event.target.result;
+        });
+        reader.readAsDataURL(imageInput.files[0]);
+    } else {
+        delete imageInput.dataset.src;
+    }
 });
 fileInput.addEventListener('click', async (event) => {
     fileInput.value = '';

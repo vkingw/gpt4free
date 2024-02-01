@@ -16,9 +16,8 @@ try:
     from selenium.webdriver.common.by import By
     from selenium.webdriver.support.ui import WebDriverWait
     from selenium.webdriver.support import expected_conditions as EC
-    has_webdriver = True
 except ImportError:
-    has_webdriver = False
+    pass
 
 from ..base_provider import AsyncGeneratorProvider, ProviderModelMixin
 from ..helper import format_prompt, get_cookies
@@ -151,8 +150,8 @@ class OpenaiChat(AsyncGeneratorProvider, ProviderModelMixin):
             headers=headers
         ) as response:
             response.raise_for_status()
-            download_url = (await response.json())["download_url"]
-        return ImageRequest(download_url, image_data["file_name"], image_data)
+            image_data["download_url"] = (await response.json())["download_url"]
+        return ImageRequest(image_data)
     
     @classmethod
     async def get_default_model(cls, session: StreamSession, headers: dict):
@@ -176,7 +175,7 @@ class OpenaiChat(AsyncGeneratorProvider, ProviderModelMixin):
         return cls.default_model
     
     @classmethod
-    def create_messages(cls, prompt: str, image_response: ImageRequest = None):
+    def create_messages(cls, prompt: str, image_request: ImageRequest = None):
         """
         Create a list of messages for the user input
         
@@ -188,7 +187,7 @@ class OpenaiChat(AsyncGeneratorProvider, ProviderModelMixin):
             A list of messages with the user input and the image, if any
         """
         # Check if there is an image response
-        if not image_response:
+        if not image_request:
             # Create a content object with the text type and the prompt
             content = {"content_type": "text", "parts": [prompt]}
         else:
@@ -196,10 +195,10 @@ class OpenaiChat(AsyncGeneratorProvider, ProviderModelMixin):
             content = {
                 "content_type": "multimodal_text",
                 "parts": [{
-                    "asset_pointer": f"file-service://{image_response.get('file_id')}",
-                    "height": image_response.get("height"),
-                    "size_bytes": image_response.get("file_size"),
-                    "width": image_response.get("width"),
+                    "asset_pointer": f"file-service://{image_request.get('file_id')}",
+                    "height": image_request.get("height"),
+                    "size_bytes": image_request.get("file_size"),
+                    "width": image_request.get("width"),
                 }, prompt]
             }
         # Create a message object with the user role and the content
@@ -209,16 +208,16 @@ class OpenaiChat(AsyncGeneratorProvider, ProviderModelMixin):
             "content": content,
         }]
         # Check if there is an image response
-        if image_response:
+        if image_request:
             # Add the metadata object with the attachments
             messages[0]["metadata"] = {
                 "attachments": [{
-                    "height": image_response.get("height"),
-                    "id": image_response.get("file_id"),
-                    "mimeType": image_response.get("mime_type"),
-                    "name": image_response.get("file_name"),
-                    "size": image_response.get("file_size"),
-                    "width": image_response.get("width"),
+                    "height": image_request.get("height"),
+                    "id": image_request.get("file_id"),
+                    "mimeType": image_request.get("mime_type"),
+                    "name": image_request.get("file_name"),
+                    "size": image_request.get("file_size"),
+                    "width": image_request.get("width"),
                 }]
             }
         return messages
@@ -332,13 +331,14 @@ class OpenaiChat(AsyncGeneratorProvider, ProviderModelMixin):
             cookies = cls._cookies or get_cookies("chat.openai.com", False)
         if not access_token and "access_token" in cookies:
             access_token = cookies["access_token"]
-        if not access_token and not has_webdriver:
-            raise MissingAccessToken(f'Missing "access_token"')
         if not access_token:
             login_url = os.environ.get("G4F_LOGIN_URL")
             if login_url:
                 yield f"Please login: [ChatGPT]({login_url})\n\n"
-            access_token, cookies = cls.browse_access_token(proxy)
+            try:
+                access_token, cookies = cls.browse_access_token(proxy)
+            except MissingRequirementsError:
+                raise MissingAccessToken(f'Missing "access_token"')
             cls._cookies = cookies
 
         headers = {"Authorization": f"Bearer {access_token}"}
@@ -352,7 +352,6 @@ class OpenaiChat(AsyncGeneratorProvider, ProviderModelMixin):
                 image_response = None
                 if image:
                     image_response = await cls.upload_image(session, headers, image)
-                    yield image_response
             except Exception as e:
                 yield e
             end_turn = EndTurn()

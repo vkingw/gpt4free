@@ -99,8 +99,33 @@ or set the api base in your client to: [http://localhost:1337/v1](http://localho
 
 ##### Install using pypi:
 
+Install all supported tools / all used packages:
 ```
-pip install -U "g4f[all]"
+pip install -U g4f[all]
+```
+Install required packages for the OpenaiChat provider:
+```
+pip install -U g4f[openai]
+```
+Install required packages for the interference api:
+```
+pip install -U g4f[api]
+```
+Install required packages for the web interface:
+```
+pip install -U g4f[gui]
+```
+Install required packages for uploading / generating images:
+```
+pip install -U g4f[image]
+```
+Install required packages for providers with webdriver:
+```
+pip install -U g4f[webdriver]
+```
+Install required packages for proxy support:
+```
+pip install -U aiohttp_socks
 ```
 
 ##### or:
@@ -202,8 +227,9 @@ docker-compose down
 
 ### The Web UI
 
-To use it in the web interface, type the following codes in the command line.
-```python3
+To start the web interface, type the following codes in the command line.
+
+```python
 from g4f.gui import run_gui
 run_gui()
 ```
@@ -281,6 +307,33 @@ response = g4f.ChatCompletion.create(
 )
 for message in response:
     print(message)
+```
+
+##### Cookies / Access Token
+
+For generating images with Bing and for the OpenAi Chat  you need cookies or a token from your browser session. From Bing you need the "_U" cookie and from OpenAI you need the "access_token". You can pass the cookies / the  access token in the create function or you use the `set_cookies` setter:
+
+```python
+from g4f import set_cookies
+
+set_cookies(".bing", {
+  "_U": "cookie value"
+})
+set_cookies("chat.openai.com", {
+  "access_token": "token value"
+})
+
+from g4f.gui import run_gui
+run_gui()
+```
+
+Alternatively, g4f reads the cookies with “browser_cookie3” from your browser
+or it starts a browser instance with selenium "webdriver" for logging in.
+If you use the pip package, you have to install “browser_cookie3” or "webdriver" by yourself.
+
+```bash
+pip install browser_cookie3
+pip install g4f[webdriver]
 ```
 
 ##### Using Browser
@@ -463,7 +516,6 @@ for choice in json_response:
 | [chat.geekgpt.org](https://chat.geekgpt.org) | `g4f.Provider.GeekGpt` | ✔️ | ✔️ | ✔️ | ![Unknown](https://img.shields.io/badge/Unknown-grey) | ❌ |
 | [gptchatly.com](https://gptchatly.com) | `g4f.Provider.GptChatly` | ✔️ | ✔️ | ❌ | ![Unknown](https://img.shields.io/badge/Unknown-grey) | ❌ |
 | [liaobots.site](https://liaobots.site) | `g4f.Provider.Liaobots` | ✔️ | ✔️ | ✔️ | ![Unknown](https://img.shields.io/badge/Unknown-grey) | ❌ |
-| [www.phind.com](https://www.phind.com) | `g4f.Provider.Phind` | ❌ | ✔️ | ✔️ | ![Unknown](https://img.shields.io/badge/Unknown-grey) | ❌ |
 | [raycast.com](https://raycast.com) | `g4f.Provider.Raycast` | ✔️ | ✔️ | ✔️ | ![Unknown](https://img.shields.io/badge/Unknown-grey) | ✔️ |
 
 ### GPT-3.5
