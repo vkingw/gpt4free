@@ -66,7 +66,7 @@ class Bing(AsyncGeneratorProvider):
             prompt = messages[-1]["content"]
             context = create_context(messages[:-1])
         
-        cookies = {**Defaults.cookies, **cookies} if cookies else Defaults.cookies
+        cookies = {**get_default_cookies(), **cookies} if cookies else get_default_cookies()
 
         gpt4_turbo = True if model.startswith("gpt-4-turbo") else False
 
@@ -141,11 +141,13 @@ class Defaults:
         'nlu_direct_response_filter', 'deepleo', 'disable_emoji_spoken_text',
         'responsible_ai_policy_235', 'enablemm', 'iyxapbing', 'iycapbing',
         'gencontentv3', 'fluxsrtrunc', 'fluxtrunc', 'fluxv1', 'rai278',
-        'replaceurl', 'eredirecturl', 'nojbfedge'
+        'replaceurl', 'eredirecturl', 'nojbfedge', "fluxcopilot", "nojbf",
+        "dgencontentv3", "nointernalsugg", "disable_telemetry", "machine_affinity",
+        "streamf", "codeint", "langdtwb", "fdwtlst", "fluxprod", "deuct3"
     ]
     
-    # Default cookies
-    cookies = {
+def get_default_cookies():
+    return {
         'SRCHD'         : 'AF=NOFORM',
         'PPLState'      : '1',
         'KievRPSSecAuth': '',
@@ -156,7 +158,7 @@ class Defaults:
 
 class ConversationStyleOptionSets():
     CREATIVE = ["h3imaginative", "clgalileo", "gencontentv3"]
-    BALANCED = ["galileo"]
+    BALANCED = ["galileo", "gldcl1p"]
     PRECISE = ["h3precise", "clgalileo"]
 
 def format_message(msg: dict) -> str:
