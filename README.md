@@ -1,4 +1,7 @@
 ![248433934-7886223b-c1d1-4260-82aa-da5741f303bb](https://github.com/xtekky/gpt4free/assets/98614666/ea012c87-76e0-496a-8ac4-e2de090cc6c9)
+
+<a href="https://trendshift.io/repositories/1692" target="_blank"><img src="https://trendshift.io/api/badge/repositories/1692" alt="xtekky%2Fgpt4free | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+
 Written by [@xtekky](https://github.com/hlohaus) & maintained by [@hlohaus](https://github.com/hlohaus)
 
 <div id="top"></div>
@@ -21,6 +24,7 @@ docker pull hlohaus789/g4f
 
 ## 🆕 What's New
 
+- Check out a more in depth local inference @ https://github.com/gpt4free/gpt4local
 - Join our Telegram Channel: [t.me/g4f_channel](https://telegram.me/g4f_channel)
 - Join our Discord Group: [discord.gg/XfybzPXPH5](https://discord.gg/XfybzPXPH5)
 - `g4f` now supports 100% local inference: [local-docs](https://g4f.mintlify.app/docs/core/usage/local)
