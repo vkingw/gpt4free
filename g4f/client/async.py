@@ -6,67 +6,35 @@ import time
 import random
 import string
 
+from .types import Client as BaseClient
+from .types import BaseProvider, ProviderType, FinishReason
 from .stubs import ChatCompletion, ChatCompletionChunk, Image, ImagesResponse
-from .typing import Union, Iterator, Messages, ImageType
-from .providers.types import BaseProvider, ProviderType, FinishReason
-from .image import ImageResponse as ImageProviderResponse
-from .errors import NoImageResponseError, RateLimitError, MissingAuthError
-from . import get_model_and_provider, get_last_provider
-
-from .Provider.BingCreateImages import BingCreateImages
-from .Provider.needs_auth import Gemini, OpenaiChat
-from .Provider.You import You
-
-ImageProvider = Union[BaseProvider, object]
-Proxies = Union[dict, str]
-IterResponse = Iterator[Union[ChatCompletion, ChatCompletionChunk]]
-
-def read_json(text: str) -> dict:
-    """
-    Parses JSON code block from a string.
-
-    Args:
-        text (str): A string containing a JSON code block.
-
-    Returns:
-        dict: A dictionary parsed from the JSON code block.
-    """
-    match = re.search(r"```(json|)\n(?P<code>[\S\s]+?)\n```", text)
-    if match:
-        return match.group("code")
-    return text
-
-def iter_response(
-    response: iter[str],
+from ..typing import Union, Iterator, Messages, ImageType, AsyncIerator
+from ..image import ImageResponse as ImageProviderResponse
+from ..errors import NoImageResponseError, RateLimitError, MissingAuthError
+from .. import get_model_and_provider, get_last_provider
+from .helper import read_json, find_stop, filter_none
+ä
+async def iter_response(
+    response: AsyncIterator[str],
     stream: bool,
     response_format: dict = None,
     max_tokens: int = None,
     stop: list = None
-) -> IterResponse:
+) -> AsyncIterResponse:
     content = ""
     finish_reason = None
     completion_id = ''.join(random.choices(string.ascii_letters + string.digits, k=28))
-    for idx, chunk in enumerate(response):
+    count: int = 0
+    async for chunk in response:
         if isinstance(chunk, FinishReason):
             finish_reason = chunk.reason
             break
         content += str(chunk)
-        if max_tokens is not None and idx + 1 >= max_tokens:
+        count += 1
+        if max_tokens is not None and count >= max_tokens:
             finish_reason = "length"
-        first = -1
-        word = None
-        if stop is not None:
-            for word in list(stop):
-                first = content.find(word)
-                if first != -1:
-                    content = content[:first]
-                    break
-            if stream and first != -1:
-                first = chunk.find(word)
-                if first != -1:
-                    chunk = chunk[:first]
-                else:
-                    first = 0
+        first, content, chunk = find_stop(stop, content, chunk)
         if first != -1:
             finish_reason = "stop"
         if stream:
@@ -82,44 +50,55 @@ def iter_response(
                 content = read_json(content)
         yield ChatCompletion(content, finish_reason, completion_id, int(time.time()))
 
-def iter_append_model_and_provider(response: IterResponse) -> IterResponse:
+async def iter_append_model_and_provider(response: AsyncIterResponse) -> IterResponse:
     last_provider = None
-    for chunk in response:
+    async for chunk in response:
         last_provider = get_last_provider(True) if last_provider is None else last_provider
         chunk.model = last_provider.get("model")
         chunk.provider =  last_provider.get("name")
         yield chunk
 
-class Client():
-
+class Client(BaseClient):
     def __init__(
         self,
-        api_key: str = None,
-        proxies: Proxies = None,
-        provider: ProviderType = None,
-        image_provider: ImageProvider = None,
         **kwargs
-    ) -> None:
-        self.api_key: str = api_key
-        self.proxies: Proxies = proxies
+    ):
+        super().__init__(**kwargs)
         self.chat: Chat = Chat(self, provider)
         self.images: Images = Images(self, image_provider)
 
-    def get_proxy(self) -> Union[str, None]:
-        if isinstance(self.proxies, str):
-            return self.proxies
-        elif self.proxies is None:
-            return os.environ.get("G4F_PROXY")
-        elif "all" in self.proxies:
-            return self.proxies["all"]
-        elif "https" in self.proxies:
-            return self.proxies["https"]
+async def cast_iter_async(iter):
+    for chunk in iter:
+        yield chunk
 
-def filter_none(**kwargs):
-    for key in list(kwargs.keys()):
-        if kwargs[key] is None:
-            del kwargs[key]
-    return kwargs
+def create_response(
+    messages: Messages,
+    model: str,
+    provider: ProviderType = None,
+    stream: bool = False,
+    response_format: dict = None,
+    max_tokens: int = None,
+    stop: Union[list[str], str] = None,
+    api_key: str = None,
+    **kwargs
+):
+    if hasattr(provider, "create_async_generator):
+        create = provider.create_async_generator
+    else:
+        create = provider.create_completion
+    response = create(
+        model, messages, stream,            
+        **filter_none(
+            proxy=self.client.get_proxy(),
+            max_tokens=max_tokens,
+            stop=stop,
+            api_key=self.client.api_key if api_key is None else api_key
+        ),
+        **kwargs
+    )
+    if not hasattr(provider, "create_async_generator")
+        response = cast_iter_async(response)
+    return response
 
 class Completions():
     def __init__(self, client: Client, provider: ProviderType = None):
@@ -133,14 +112,11 @@ class Completions():
         provider: ProviderType = None,
         stream: bool = False,
         response_format: dict = None,
-        max_tokens: int = None,
-        stop: Union[list[str], str] = None,
-        api_key: str = None,
         ignored  : list[str] = None,
         ignore_working: bool = False,
         ignore_stream: bool = False,
         **kwargs
-    ) -> Union[ChatCompletion, Iterator[ChatCompletionChunk]]:
+    ) -> Union[ChatCompletion, AsyncIterator[ChatCompletionChunk]]:
         model, provider = get_model_and_provider(
             model,
             self.provider if provider is None else provider,
@@ -151,19 +127,10 @@ class Completions():
             **kwargs
         )
         stop = [stop] if isinstance(stop, str) else stop
-        response = provider.create_completion(
-            model, messages, stream,            
-            **filter_none(
-                proxy=self.client.get_proxy(),
-                max_tokens=max_tokens,
-                stop=stop,
-                api_key=self.client.api_key if api_key is None else api_key
-            ),
-            **kwargs
-        )
+        response = create_response(messages, model, provider, stream, **kwargs)
         response = iter_response(response, stream, response_format, max_tokens, stop)
         response = iter_append_model_and_provider(response)
-        return response if stream else next(response)
+        return response if stream else anext(response)
 
 class Chat():
     completions: Completions
@@ -171,26 +138,14 @@ class Chat():
     def __init__(self, client: Client, provider: ProviderType = None):
         self.completions = Completions(client, provider)
 
-class ImageModels():
-    gemini = Gemini
-    openai = OpenaiChat
-    you = You
-
-    def __init__(self, client: Client) -> None:
-        self.client = client
-        self.default = BingCreateImages(proxy=self.client.get_proxy())
-
-    def get(self, name: str, default: ImageProvider = None) -> ImageProvider:
-        return getattr(self, name) if hasattr(self, name) else default or self.default
-
-def iter_image_response(response: Iterator) -> Union[ImagesResponse, None]:
-    for chunk in list(response):
+async def iter_image_response(response: Iterator) -> Union[ImagesResponse, None]:
+    async for chunk in list(response):
         if isinstance(chunk, ImageProviderResponse):
             return ImagesResponse([Image(image) for image in chunk.get_list()])
 
-def create_image(client: Client, provider: ProviderType, prompt: str, model: str = "", **kwargs) -> Iterator:
+def create_image(client: Client, provider: ProviderType, prompt: str, model: str = "", **kwargs) -> AsyncIterator:
     prompt = f"create a image with: {prompt}"
-    return provider.create_completion(
+    return provider.create_async_generator(
         model,
         [{"role": "user", "content": prompt}],
         True,
@@ -204,7 +159,7 @@ class Images():
         self.provider: ImageProvider = provider
         self.models: ImageModels = ImageModels(client)
 
-    def generate(self, prompt, model: str = None, **kwargs) -> ImagesResponse:
+    async def generate(self, prompt, model: str = None, **kwargs) -> ImagesResponse:
         provider = self.models.get(model, self.provider)
         if isinstance(provider, type) and issubclass(provider, BaseProvider):
             response = create_image(self.client, provider, prompt, **kwargs)
@@ -222,11 +177,11 @@ class Images():
             raise NoImageResponseError()
         return image
 
-    def create_variation(self, image: ImageType, model: str = None, **kwargs):
+    async def create_variation(self, image: ImageType, model: str = None, **kwargs):
         provider = self.models.get(model, self.provider)
         result = None
         if isinstance(provider, type) and issubclass(provider, BaseProvider):
-            response = provider.create_completion(
+            response = provider.create_async_generator(
                 "",
                 [{"role": "user", "content": "create a image like this"}],
                 True,
@@ -234,7 +189,7 @@ class Images():
                 proxy=self.client.get_proxy(),
                 **kwargs
             )
-            for chunk in response:
+            async for chunk in response:
                 if isinstance(chunk, ImageProviderResponse):
                     result = ([chunk.images] if isinstance(chunk.images, str) else chunk.images)
                     result = ImagesResponse([Image(image)for image in result])
