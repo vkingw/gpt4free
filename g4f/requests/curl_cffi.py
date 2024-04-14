@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from curl_cffi.requests import AsyncSession, Response, CurlMime
+from curl_cffi.requests import AsyncSession, Response
+try:
+    from curl_cffi.requests import CurlMime
+    has_curl_mime = True
+except ImportError:
+    has_curl_mime = False
 from typing import AsyncGenerator, Any
 from functools import partialmethod
 import json
@@ -29,15 +34,13 @@ class StreamResponse:
         """Asynchronously parse the JSON response content."""
         return json.loads(await self.inner.acontent(), **kwargs)
 
-    async def iter_lines(self) -> AsyncGenerator[bytes, None]:
+    def iter_lines(self) -> AsyncGenerator[bytes, None]:
         """Asynchronously iterate over the lines of the response."""
-        async for line in self.inner.aiter_lines():
-            yield line
+        return  self.inner.aiter_lines()
 
-    async def iter_content(self) -> AsyncGenerator[bytes, None]:
+    def iter_content(self) -> AsyncGenerator[bytes, None]:
         """Asynchronously iterate over the response content."""
-        async for chunk in self.inner.aiter_content():
-            yield chunk
+        return self.inner.aiter_content()
 
     async def __aenter__(self):
         """Asynchronously enter the runtime context for the response object."""
@@ -78,6 +81,11 @@ class StreamSession(AsyncSession):
     patch = partialmethod(request, "PATCH")
     delete = partialmethod(request, "DELETE")
 
-class FormData(CurlMime):
-    def add_field(self, name, data=None, content_type: str = None, filename: str = None) -> None:
-        self.addpart(name, content_type=content_type, filename=filename, data=data)
+if has_curl_mime:
+    class FormData(CurlMime):
+        def add_field(self, name, data=None, content_type: str = None, filename: str = None) -> None:
+            self.addpart(name, content_type=content_type, filename=filename, data=data)
+else:
+    class FormData():
+        def __init__(self) -> None:
+            raise RuntimeError("CurlMimi in curl_cffi is missing | pip install -U g4f[curl_cffi]")

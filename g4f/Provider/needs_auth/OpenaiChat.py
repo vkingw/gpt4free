@@ -35,6 +35,7 @@ from ... import debug
 class OpenaiChat(AsyncGeneratorProvider, ProviderModelMixin):
     """A class for creating and managing conversations with OpenAI chat service"""
 
+    lebel = "OpenAI ChatGPT"
     url = "https://chat.openai.com"
     working = True
     supports_gpt_35_turbo = True
@@ -333,8 +334,9 @@ class OpenaiChat(AsyncGeneratorProvider, ProviderModelMixin):
         Raises:
             RuntimeError: If an error occurs during processing.
         """
+
         async with StreamSession(
-            proxies={"https": proxy},
+            proxies={"all": proxy},
             impersonate="chrome",
             timeout=timeout
         ) as session:
@@ -358,6 +360,7 @@ class OpenaiChat(AsyncGeneratorProvider, ProviderModelMixin):
                     if debug.logging:
                         print("OpenaiChat: Load default_model failed")
                         print(f"{e.__class__.__name__}: {e}")
+                        
 
             arkose_token = None
             if cls.default_model is None:
@@ -581,6 +584,7 @@ this.fetch = async (url, options) => {
             user_data_dir = user_config_dir("g4f-nodriver")
         except:
             user_data_dir = None
+        
         browser = await uc.start(user_data_dir=user_data_dir)
         page = await browser.get("https://chat.openai.com/")
         while await page.query_selector("#prompt-textarea") is None:
