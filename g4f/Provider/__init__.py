@@ -30,6 +30,7 @@ from .MagickPen        import MagickPen
 from .PerplexityLabs   import PerplexityLabs
 from .Pi               import Pi
 from .Pizzagpt         import Pizzagpt
+from .PollinationsAI   import PollinationsAI
 from .Prodia           import Prodia
 from .Reka             import Reka
 from .ReplicateHome    import ReplicateHome
@@ -39,6 +40,7 @@ from .TeachAnything    import TeachAnything
 from .Upstage          import Upstage
 from .You              import You
 from .Mhystical        import Mhystical
+from .Flux             import Flux
 
 import sys
 
