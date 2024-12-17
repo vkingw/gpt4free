@@ -23,13 +23,15 @@ class OpenaiAPI(AsyncGeneratorProvider, ProviderModelMixin):
     fallback_models = []
 
     @classmethod
-    def get_models(cls, api_key: str = None):
+    def get_models(cls, api_key: str = None, api_base: str = None) -> list[str]:
         if not cls.models:
             try:
                 headers = {}
+                if api_base is None:
+                    api_base = cls.api_base
                 if api_key is not None:
                     headers["authorization"] = f"Bearer {api_key}"
-                response = requests.get(f"{cls.api_base}/models", headers=headers)
+                response = requests.get(f"{api_base}/models", headers=headers)
                 raise_for_status(response)
                 data = response.json()
                 cls.models = [model.get("id") for model in data.get("data")]
@@ -48,7 +50,7 @@ class OpenaiAPI(AsyncGeneratorProvider, ProviderModelMixin):
         timeout: int = 120,
         images: ImagesType = None,
         api_key: str = None,
-        api_base: str = api_base,
+        api_base: str = None,
         temperature: float = None,
         max_tokens: int = None,
         top_p: float = None,
@@ -61,6 +63,8 @@ class OpenaiAPI(AsyncGeneratorProvider, ProviderModelMixin):
     ) -> AsyncResult:
         if cls.needs_auth and api_key is None:
             raise MissingAuthError('Add a "api_key"')
+        if api_base is None:
+            api_base = cls.api_base
         if images is not None:
             if not model and hasattr(cls, "default_vision_model"):
                 model = cls.default_vision_model
@@ -82,7 +86,7 @@ class OpenaiAPI(AsyncGeneratorProvider, ProviderModelMixin):
         ) as session:
             data = filter_none(
                 messages=messages,
-                model=cls.get_model(model),
+                model=cls.get_model(model, api_key=api_key, api_base=api_base),
                 temperature=temperature,
                 max_tokens=max_tokens,
                 top_p=top_p,
@@ -134,8 +138,10 @@ class OpenaiAPI(AsyncGeneratorProvider, ProviderModelMixin):
         elif "error" in data:
             if "code" in data["error"]:
                 raise ResponseError(f'Error {data["error"]["code"]}: {data["error"]["message"]}')
-            else:
+            elif "message" in data["error"]:
                 raise ResponseError(data["error"]["message"])
+            else:
+                raise ResponseError(data["error"])
 
     @classmethod
     def get_headers(cls, stream: bool, api_key: str = None, headers: dict = None) -> dict:
