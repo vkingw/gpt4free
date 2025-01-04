@@ -7,6 +7,7 @@ from typing import List
 
 from ..typing import AsyncResult, Messages
 from ..image import ImageResponse
+from ..providers.response import FinishReason, Usage
 from ..requests.raise_for_status import raise_for_status
 from .base_provider import AsyncGeneratorProvider, ProviderModelMixin
 
@@ -35,7 +36,7 @@ class Airforce(AsyncGeneratorProvider, ProviderModelMixin):
     supports_system_message = True
     supports_message_history = True
 
-    default_model = "gpt-4o-mini"
+    default_model = "llama-3.1-70b-chat"
     default_image_model = "flux"
     
     models = []
@@ -45,7 +46,6 @@ class Airforce(AsyncGeneratorProvider, ProviderModelMixin):
     additional_models_imagine = ["flux-1.1-pro", "midjourney", "dall-e-3"]
     model_aliases = {
         # Alias mappings for models
-        "gpt-4": "gpt-4o",
         "openchat-3.5": "openchat-3.5-0106",
         "deepseek-coder": "deepseek-coder-6.7b-instruct",
         "hermes-2-dpo": "Nous-Hermes-2-Mixtral-8x7B-DPO",
@@ -113,7 +113,7 @@ class Airforce(AsyncGeneratorProvider, ProviderModelMixin):
     @classmethod
     def get_model(cls, model: str) -> str:
         """Get the actual model name from alias"""
-        return cls.model_aliases.get(model, model)
+        return cls.model_aliases.get(model, model or cls.default_model)
 
     @classmethod
     async def check_api_key(cls, api_key: str) -> bool:
@@ -162,6 +162,9 @@ class Airforce(AsyncGeneratorProvider, ProviderModelMixin):
         """
         Filters the full response to remove system errors and other unwanted text.
         """
+        if "Model not found or too long input. Or any other error (xD)" in response:
+            raise ValueError(response)
+
         filtered_response = re.sub(r"\[ERROR\] '\w{8}-\w{4}-\w{4}-\w{4}-\w{12}'", '', response)  # any-uncensored
         filtered_response = re.sub(r'<\|im_end\|>', '', filtered_response)  # remove <|im_end|> token
         filtered_response = re.sub(r'</s>', '', filtered_response)  # neural-chat-7b-v3-1  
@@ -229,17 +232,19 @@ class Airforce(AsyncGeneratorProvider, ProviderModelMixin):
         data = {
             "messages": final_messages,
             "model": model,
-            "max_tokens": max_tokens,
             "temperature": temperature,
             "top_p": top_p,
             "stream": stream,
         }
+        if max_tokens != 512:
+            data["max_tokens"] = max_tokens
 
         async with ClientSession(headers=headers) as session:
             async with session.post(cls.api_endpoint_completions, json=data, proxy=proxy) as response:
                 await raise_for_status(response)
 
                 if stream:
+                    idx = 0
                     async for line in response.content:
                         line = line.decode('utf-8').strip()
                         if line.startswith('data: '):
@@ -252,11 +257,18 @@ class Airforce(AsyncGeneratorProvider, ProviderModelMixin):
                                         chunk = cls._filter_response(delta['content'])
                                         if chunk:
                                             yield chunk
+                                            idx += 1
                             except json.JSONDecodeError:
                                 continue
+                    if idx == 512:
+                        yield FinishReason("length")
                 else:
                     # Non-streaming response
                     result = await response.json()
+                    if "usage" in result:
+                        yield Usage(**result["usage"])
+                        if result["usage"]["completion_tokens"] == 512:
+                            yield FinishReason("length")
                     if 'choices' in result and result['choices']:
                         message = result['choices'][0].get('message', {})
                         content = message.get('content', '')
@@ -270,7 +282,7 @@ class Airforce(AsyncGeneratorProvider, ProviderModelMixin):
         messages: Messages,
         prompt: str = None,
         proxy: str = None,
-        max_tokens: int = 4096,
+        max_tokens: int = 512,
         temperature: float = 1,
         top_p: float = 1,
         stream: bool = True,

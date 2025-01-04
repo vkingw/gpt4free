@@ -7,7 +7,7 @@ from typing import Optional, Callable, AsyncIterator
 
 from ..typing import Messages
 from ..providers.helper import filter_none
-from ..client.helper import to_async_iterator
+from ..providers.asyncio import to_async_iterator
 from .web_search import do_search, get_search_message
 from .files import read_bucket, get_bucket_dir
 from .. import debug
@@ -40,7 +40,7 @@ async def async_iter_run_tools(async_iter_callback, model, messages, tool_calls:
                     )
                 elif tool.get("function", {}).get("name") == "continue":
                     last_line = messages[-1]["content"].strip().splitlines()[-1]
-                    content = f"Continue after this line.\n{last_line}"
+                    content = f"Carry on from this point:\n{last_line}"
                     messages.append({"role": "user", "content": content})
                 elif tool.get("function", {}).get("name") == "bucket_tool":
                     def on_bucket(match):
@@ -55,9 +55,7 @@ async def async_iter_run_tools(async_iter_callback, model, messages, tool_calls:
                     if has_bucket and isinstance(messages[-1]["content"], str):
                         messages[-1]["content"] += BUCKET_INSTRUCTIONS
 
-    response = async_iter_callback(model=model, messages=messages, **kwargs)
-    if not hasattr(response, "__aiter__"):
-        response = to_async_iterator(response)
+    response = to_async_iterator(async_iter_callback(model=model, messages=messages, **kwargs))
     async for chunk in response:
         yield chunk
 
@@ -90,7 +88,7 @@ def iter_run_tools(
                 elif tool.get("function", {}).get("name") == "continue_tool":
                     if provider not in ("OpenaiAccount", "HuggingFace"):
                         last_line = messages[-1]["content"].strip().splitlines()[-1]
-                        content = f"Continue after this line:\n{last_line}"
+                        content = f"Carry on from this point:\n{last_line}"
                         messages.append({"role": "user", "content": content})
                     else:
                         # Enable provider native continue

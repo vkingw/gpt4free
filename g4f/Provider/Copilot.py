@@ -90,7 +90,7 @@ class Copilot(AbstractProvider, ProviderModelMixin):
                         cls._access_token, cls._cookies = asyncio.run(get_access_token_and_cookies(cls.url, proxy))
                     else:
                         raise h
-            yield Parameters(**{"api_key": cls._access_token, "cookies": cls._cookies})
+            yield Parameters(**{"api_key": cls._access_token, "cookies": cls._cookies if isinstance(cls._cookies, dict) else {c.name: c.value for c in cls._cookies}})
             websocket_url = f"{websocket_url}&accessToken={quote(cls._access_token)}"
             headers = {"authorization": f"Bearer {cls._access_token}"}
 
@@ -127,8 +127,8 @@ class Copilot(AbstractProvider, ProviderModelMixin):
                 response = session.post(cls.conversation_url)
                 raise_for_status(response)
                 conversation_id = response.json().get("id")
+                conversation = Conversation(conversation_id)
                 if return_conversation:
-                    conversation = Conversation(conversation_id)
                     yield conversation
                 if prompt is None:
                     prompt = format_prompt_max_length(messages, 10000)
@@ -138,7 +138,6 @@ class Copilot(AbstractProvider, ProviderModelMixin):
                 if prompt is None:
                     prompt = messages[-1]["content"]
                 debug.log(f"Copilot: Use conversation: {conversation_id}")
-            yield Parameters(**{"conversation": conversation.get_dict(), "user": user, "prompt": prompt})
 
             uploaded_images = []
             if images is not None:
@@ -191,6 +190,8 @@ class Copilot(AbstractProvider, ProviderModelMixin):
                         yield ImageResponse(msg.get("url"), image_prompt, {"preview": msg.get("thumbnailUrl")})
                     elif msg.get("event") == "done":
                         break
+                    elif msg.get("event") == "replaceText":
+                        yield msg.get("text")
                     elif msg.get("event") == "error":
                         raise RuntimeError(f"Error: {msg}")
                     elif msg.get("event") not in ["received", "startMessage", "citation", "partCompleted"]:
@@ -198,6 +199,7 @@ class Copilot(AbstractProvider, ProviderModelMixin):
                 if not is_started:
                     raise RuntimeError(f"Invalid response: {last_msg}")
             finally:
+                yield Parameters(**{"conversation": conversation.get_dict(), "user": user, "prompt": prompt})
                 yield Parameters(**{"cookies": {c.name: c.value for c in session.cookies.jar}})
 
 async def get_access_token_and_cookies(url: str, proxy: str = None, target: str = "ChatAI",):

@@ -47,8 +47,8 @@ class HuggingFace(AsyncGeneratorProvider, ProviderModelMixin):
         proxy: str = None,
         api_base: str = "https://api-inference.huggingface.co",
         api_key: str = None,
-        max_new_tokens: int = 1024,
-        temperature: float = 0.7,
+        max_tokens: int = 1024,
+        temperature: float = None,
         prompt: str = None,
         action: str = None,
         extra_data: dict = {},
@@ -84,7 +84,7 @@ class HuggingFace(AsyncGeneratorProvider, ProviderModelMixin):
         else:
             params = {
                 "return_full_text": False,
-                "max_new_tokens": max_new_tokens,
+                "max_new_tokens": max_tokens,
                 "temperature": temperature,
                 **extra_data
             }
@@ -111,7 +111,7 @@ class HuggingFace(AsyncGeneratorProvider, ProviderModelMixin):
                             messages = [m for m in messages if m["role"] == "system"] + [messages[-1]]
                         inputs = get_inputs(messages, model_data, model_type, do_continue)
                         debug.log(f"New len: {len(inputs)}")
-                    if model_type == "gpt2" and max_new_tokens >= 1024:
+                    if model_type == "gpt2" and max_tokens >= 1024:
                         params["max_new_tokens"] = 512
                 payload = {"inputs": inputs, "parameters": params, "stream": stream}
 

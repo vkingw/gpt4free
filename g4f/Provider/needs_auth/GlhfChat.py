@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from .OpenaiAPI import OpenaiAPI
 
-class glhfChat(OpenaiAPI):
-    label = "glhf.chat"
+class GlhfChat(OpenaiAPI):
+    label = "GlhfChat"
     url = "https://glhf.chat"
     api_base = "https://glhf.chat/api/openai/v1"
     working = True
