@@ -95,7 +95,9 @@ class OpenaiChat(AsyncAuthedProvider, ProviderModelMixin):
     supports_message_history = True
     supports_system_message = True
     default_model = "auto"
-    fallback_models = [default_model, "gpt-4", "gpt-4o", "gpt-4o-mini", "gpt-4o-canmore", "o1", "o1-preview", "o1-mini"]
+    default_image_model = "dall-e-3"
+    image_models = [default_image_model]
+    fallback_models = [default_model, "gpt-4", "gpt-4o", "gpt-4o-mini", "gpt-4o-canmore", "o1", "o1-preview", "o1-mini"] +image_models
     vision_models = fallback_models
     synthesize_content_type = "audio/mpeg"
 
@@ -262,7 +264,7 @@ class OpenaiChat(AsyncAuthedProvider, ProviderModelMixin):
         return messages
 
     @classmethod
-    async def get_generated_image(cls, auth_result: AuthResult, session: StreamSession, element: dict, prompt: str = None) -> ImageResponse:
+    async def get_generated_image(cls, session: StreamSession, auth_result: AuthResult, element: dict, prompt: str = None) -> ImageResponse:
         try:
             prompt = element["metadata"]["dalle"]["prompt"]
             file_id = element["asset_pointer"].split("file-service://", 1)[1]
@@ -450,7 +452,7 @@ class OpenaiChat(AsyncAuthedProvider, ProviderModelMixin):
                     await raise_for_status(response)
                     buffer = u""
                     async for line in response.iter_lines():
-                        async for chunk in cls.iter_messages_line(session, line, conversation, sources):
+                        async for chunk in cls.iter_messages_line(session, auth_result, line, conversation, sources):
                             if isinstance(chunk, str):
                                 chunk = chunk.replace("\ue203", "").replace("\ue204", "").replace("\ue206", "")
                                 buffer += chunk
@@ -495,11 +497,10 @@ class OpenaiChat(AsyncAuthedProvider, ProviderModelMixin):
                     "headers": cls._headers,
                     "web_search": web_search,
                 })
-            actions = ["variant", "continue"] if conversation.finish_reason == "max_tokens" else ["variant"]
-            yield FinishReason(conversation.finish_reason, actions=actions)
+            yield FinishReason(conversation.finish_reason)
 
     @classmethod
-    async def iter_messages_line(cls, session: StreamSession, line: bytes, fields: Conversation, sources: Sources) -> AsyncIterator:
+    async def iter_messages_line(cls, session: StreamSession, auth_result: AuthResult, line: bytes, fields: Conversation, sources: Sources) -> AsyncIterator:
         if not line.startswith(b"data: "):
             return
         elif line.startswith(b"data: [DONE]"):
@@ -545,7 +546,7 @@ class OpenaiChat(AsyncAuthedProvider, ProviderModelMixin):
                         generated_images = []
                         for element in c.get("parts"):
                             if isinstance(element, dict) and element.get("content_type") == "image_asset_pointer":
-                                image = cls.get_generated_image(session, cls._headers, element)
+                                image = cls.get_generated_image(session, auth_result, element)
                                 generated_images.append(image)
                         for image_response in await asyncio.gather(*generated_images):
                             if image_response is not None:
