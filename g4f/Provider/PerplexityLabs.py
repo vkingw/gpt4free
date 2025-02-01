@@ -5,7 +5,7 @@ import json
 
 from ..typing import AsyncResult, Messages
 from ..requests import StreamSession, raise_for_status
-from ..providers.response import Reasoning, FinishReason
+from ..providers.response import FinishReason
 from .base_provider import AsyncGeneratorProvider, ProviderModelMixin
 
 API_URL = "https://www.perplexity.ai/socket.io/"
@@ -21,10 +21,6 @@ class PerplexityLabs(AsyncGeneratorProvider, ProviderModelMixin):
         "sonar",
         "sonar-reasoning",
     ]
-    model_aliases = {
-        "sonar-online": default_model,
-        "sonar-chat": default_model,
-    }
 
     @classmethod
     async def create_async_generator(
@@ -87,22 +83,7 @@ class PerplexityLabs(AsyncGeneratorProvider, ProviderModelMixin):
                         continue
                     try:
                         data = json.loads(message[2:])[1]
-                        new_content = data["output"][last_message:]
-
-                        if "<think>" in new_content:
-                            yield Reasoning(None, "thinking")
-                            is_thinking = True
-                        if "</think>" in new_content:
-                            new_content = new_content.split("</think>", 1)
-                            yield Reasoning(f"{new_content[0]}</think>")
-                            yield Reasoning(None, "finished")
-                            yield new_content[1]
-                            is_thinking = False
-                        elif is_thinking:
-                            yield Reasoning(new_content)
-                        else:
-                            yield new_content
-
+                        yield data["output"][last_message:]
                         last_message = len(data["output"])
                         if data["final"]:
                             yield FinishReason("stop")

@@ -42,7 +42,7 @@ docker pull hlohaus789/g4f
   Join us at [telegram.me/g4f_channel](https://telegram.me/g4f_channel).  
 
 - **Get support in our Discord Community** 🤝💻  
-  Reach out for help in our [Support Group: discord.gg/qXA4Wf4Fsm](https://discord.gg/qXA4Wf4Fsm).  
+  Reach out for help in our [Support Group: https://discord.gg/5E39JUWUFa](https://discord.gg/5E39JUWUFa).  
 
 - **Subscribe to our Discord News Channel** 💬🆕️  
   Stay informed about updates via our [News Channel: discord.gg/5E39JUWUFa](https://discord.gg/5E39JUWUFa).  
@@ -213,9 +213,13 @@ from g4f.gui import run_gui
 
 run_gui()
 ```
-**Or, run via CLI:**
+** Run via CLI (To start the Flask Server):**
 ```bash
-python -m g4f.cli gui -port 8080 -debug
+python -m g4f.cli gui --port 8080 --debug
+```
+**Or, start the FastAPI Server:**
+```bash
+python -m g4f --port 8080 --debug
 ```
 
 > **Learn More About the GUI:** For detailed instructions on how to set up, configure, and use the GPT4Free GUI, refer to the [GUI Documentation](docs/gui.md) . This guide includes step-by-step details on provider selection, managing conversations, using advanced features like speech recognition, and more.

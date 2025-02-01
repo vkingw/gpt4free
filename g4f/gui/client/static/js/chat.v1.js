@@ -39,7 +39,7 @@ let reasoning_storage = {}
 let is_demo = false;
 
 messageInput.addEventListener("blur", () => {
-    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
 });
 
 messageInput.addEventListener("focus", () => {
@@ -244,16 +244,23 @@ const register_message_buttons = async () => {
         if (!("click" in el.dataset)) {
             el.dataset.click = "true";
             el.addEventListener("click", async () => {
-                let message_el = get_message_el(el);
                 const elem = window.document.createElement('a');
                 let filename = `chat ${new Date().toLocaleString()}.md`.replaceAll(":", "-");
-                elem.href = message_el.dataset.object_url;
+                const conversation = await get_conversation(window.conversation_id);
+                let buffer = "";
+                conversation.items.forEach(message => {
+                    buffer += `${message.role == 'user' ? 'User' : 'Assistant'}: ${message.content.trim()}\n\n\n`;
+                });
+                const file = new File([buffer.trim()], 'message.md', {type: 'text/plain'});
+                const objectUrl = URL.createObjectURL(file);
+                elem.href = objectUrl;
                 elem.download = filename;        
                 document.body.appendChild(elem);
                 elem.click();        
                 document.body.removeChild(elem);
                 el.classList.add("clicked");
                 setTimeout(() => el.classList.remove("clicked"), 1000);
+                URL.revokeObjectURL(objectUrl);
             })
         }
     });
@@ -1771,7 +1778,11 @@ function update_message(content_map, message_id, content = null, scroll = true) 
 let countFocus = messageInput;
 const count_input = async () => {
     if (countFocus.value) {
-        inputCount.innerText = count_words_and_tokens(countFocus.value, get_selected_model()?.value);
+        if (window.matchMedia("(pointer:coarse)")) {
+            inputCount.innerText = `(${count_tokens(get_selected_model()?.value, countFocus.value)} tokens)`;
+        } else {
+            inputCount.innerText = count_words_and_tokens(countFocus.value, get_selected_model()?.value);
+        }
     } else {
         inputCount.innerText = "";
     }
@@ -1815,11 +1826,7 @@ async function on_load() {
         let chat_url = new URL(window.location.href)
         let chat_params = new URLSearchParams(chat_url.search);
         if (chat_params.get("prompt")) {
-            messageInput.value = chat_params.title
-                               + chat_params.title ? "\n\n\n" : ""
-                               + chat_params.prompt
-                               + chat_params.prompt && chat_params.url ? "\n\n\n" : ""
-                               + chat_params.url;
+            messageInput.value = `${chat_params.title}\n${chat_params.prompt}\n${chat_params.url}`.trim();
             messageInput.style.height = messageInput.scrollHeight  + "px";
             messageInput.focus();
             //await handle_ask();
@@ -1870,7 +1877,8 @@ async function on_api() {
     messageInput.addEventListener("keydown", async (evt) => {
         if (prompt_lock) return;
         // If not mobile and not shift enter
-        if (!window.matchMedia("(pointer:coarse)").matches && evt.keyCode === 13 && !evt.shiftKey) {
+        let do_enter = messageInput.value.endsWith("\n\n");
+        if (do_enter || !window.matchMedia("(pointer:coarse)").matches && evt.keyCode === 13 && !evt.shiftKey) {
             evt.preventDefault();
             console.log("pressed enter");
             prompt_lock = true;
@@ -1892,7 +1900,9 @@ async function on_api() {
         stop_recognition();
         await handle_ask(false);
     });
-    messageInput.focus();
+    messageInput.addEventListener(`click`, async () => {
+        stop_recognition();
+    });
 
     let provider_options = [];
     models = await api("models");
@@ -1961,42 +1971,74 @@ async function on_api() {
                 }
             }
         });
+
+        let providersContainer = document.createElement("div");
+        providersContainer.classList.add("field", "collapsible");
+        providersContainer.innerHTML = `
+            <div class="collapsible-header">
+                <span class="label">Providers (Enable/Disable)</span>
+                <i class="fa-solid fa-chevron-down"></i>
+            </div>
+            <div class="collapsible-content hidden"></div>
+        `;
+        settings.querySelector(".paper").appendChild(providersContainer);
+
         providers.forEach((provider) => {
             if (!provider.parent) {
-                option = document.createElement("div");
-                option.classList.add("field");
+                let option = document.createElement("div");
+                option.classList.add("provider-item");
                 option.innerHTML = `
                     <span class="label">Enable ${provider.label}</span>
                     <input id="Provider${provider.name}" type="checkbox" name="Provider${provider.name}" value="${provider.name}" class="provider" checked="">
                     <label for="Provider${provider.name}" class="toogle" title="Remove provider from dropdown"></label>
                 `;
                 option.querySelector("input").addEventListener("change", (event) => load_provider_option(event.target, provider.name));
-                settings.querySelector(".paper").appendChild(option);
+                providersContainer.querySelector(".collapsible-content").appendChild(option);
                 provider_options[provider.name] = option;
             }
         });
+
+        providersContainer.querySelector(".collapsible-header").addEventListener('click', (e) => {
+            providersContainer.querySelector(".collapsible-content").classList.toggle('hidden');
+            providersContainer.querySelector(".collapsible-header").classList.toggle('active');
+        });
     }
+
     if (appStorage.getItem("provider")) {
         await load_provider_models(appStorage.getItem("provider"))
     } else {
         providerSelect.selectedIndex = 0;
     }
+
+    let providersListContainer = document.createElement("div");
+    providersListContainer.classList.add("field", "collapsible");
+    providersListContainer.innerHTML = `
+        <div class="collapsible-header">
+            <span class="label">Providers API key</span>
+            <i class="fa-solid fa-chevron-down"></i>
+        </div>
+        <div class="collapsible-content hidden"></div>
+    `;
+    settings.querySelector(".paper").appendChild(providersListContainer);
+
     for (let [name, [label, login_url, childs]] of Object.entries(login_urls)) {
         if (!login_url && !is_demo) {
             continue;
         }
-        option = document.createElement("div");
-        option.classList.add("field", "box");
-        if (!is_demo) {
-            option.classList.add("hidden");
-        }
-        childs = childs.map((child)=>`${child}-api_key`).join(" ");
-        option.innerHTML = `
+        let providerBox = document.createElement("div");
+        providerBox.classList.add("field", "box");
+        childs = childs.map((child) => `${child}-api_key`).join(" ");
+        providerBox.innerHTML = `
             <label for="${name}-api_key" class="label" title="">${label}:</label>
             <input type="text" id="${name}-api_key" name="${name}[api_key]" class="${childs}" placeholder="api_key" autocomplete="off"/>
         ` + (login_url ? `<a href="${login_url}" target="_blank" title="Login to ${label}">Get API key</a>` : "");
-        settings.querySelector(".paper").appendChild(option);
+        providersListContainer.querySelector(".collapsible-content").appendChild(providerBox);
     }
+
+    providersListContainer.querySelector(".collapsible-header").addEventListener('click', (e) => {
+        providersListContainer.querySelector(".collapsible-content").classList.toggle('hidden');
+        providersListContainer.querySelector(".collapsible-header").classList.toggle('active');
+    });
 
     register_settings_storage();
     await load_settings_storage();
@@ -2394,14 +2436,18 @@ async function load_provider_models(provider=null) {
     if (models && models.length > 0) {
         modelSelect.classList.add("hidden");
         modelProvider.classList.remove("hidden");
-        models.forEach((model) => {
+        let defaultIndex = 0;
+        models.forEach((model, i) => {
             let option = document.createElement('option');
             option.value = model.model;
             option.dataset.label = model.model;
             option.text = `${model.model}${model.image ? " (Image Generation)" : ""}${model.vision ? " (Image Upload)" : ""}`;
-            option.selected = model.default;
             modelProvider.appendChild(option);
+            if (model.default) {
+                defaultIndex = i;
+            }
         });
+        modelProvider.selectedIndex = defaultIndex;
         let value = appStorage.getItem(modelProvider.name);
         if (value) {
             modelProvider.value = value;
@@ -2411,7 +2457,12 @@ async function load_provider_models(provider=null) {
         modelSelect.classList.remove("hidden");
     }
 };
-providerSelect.addEventListener("change", () => load_provider_models());
+providerSelect.addEventListener("change", () => {
+    load_provider_models()
+    messageInput.focus();
+});
+modelSelect.addEventListener("change", () => messageInput.focus());
+modelProvider.addEventListener("change", () =>  messageInput.focus());
 
 document.getElementById("pin").addEventListener("click", async () => {
     const pin_container = document.getElementById("pin_container");
@@ -2446,6 +2497,7 @@ switchInput.addEventListener("change", () => {
 });
 searchButton.addEventListener("click", async () => {
     switchInput.click();
+    messageInput.focus();
 });
 
 function save_storage() {
