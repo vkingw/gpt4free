@@ -71,7 +71,7 @@ def format_images_markdown(images: Union[str, list], alt: str, preview: Union[st
 class ResponseType:
     @abstractmethod
     def __str__(self) -> str:
-        pass
+        raise NotImplementedError
 
 class JsonMixin:
     def __init__(self, **kwargs) -> None:
@@ -87,6 +87,9 @@ class JsonMixin:
 
     def reset(self):
         self.__dict__ = {}
+
+class RawResponse(ResponseType, JsonMixin):
+    pass
 
 class HiddenResponse(ResponseType):
     def __str__(self) -> str:
@@ -113,21 +116,9 @@ class TitleGeneration(HiddenResponse):
     def __init__(self, title: str) -> None:
         self.title = title
 
-class DebugResponse(JsonMixin, HiddenResponse):
-    @classmethod
-    def from_dict(cls, data: dict) -> None:
-        return cls(**data)
-
-    @classmethod
-    def from_str(cls, data: str) -> None:
-        return cls(error=data)
-
-class Notification(ResponseType):
-    def __init__(self, message: str) -> None:
-        self.message = message
-
-    def __str__(self) -> str:
-        return f"{self.message}\n"
+class DebugResponse(HiddenResponse):
+    def __init__(self, log: str) -> None:
+        self.log = log
 
 class Reasoning(ResponseType):
     def __init__(
@@ -143,7 +134,18 @@ class Reasoning(ResponseType):
     def __str__(self) -> str:
         if self.is_thinking is not None:
             return self.is_thinking
-        return f"{self.status}\n" if self.token is None else self.token
+        if self.token is not None:
+            return self.token
+        if self.status is not None:
+            return f"{self.status}\n"
+        return ""
+
+    def get_dict(self):
+        if self.is_thinking is None:
+            if self.status is None:
+                return {"token": self.token}
+            {"token": self.token, "status": self.status}
+        return {"token": self.token, "status": self.status, "is_thinking": self.is_thinking}
 
 class Sources(ResponseType):
     def __init__(self, sources: list[dict[str, str]]) -> None:
