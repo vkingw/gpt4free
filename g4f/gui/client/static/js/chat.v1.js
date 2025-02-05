@@ -1959,7 +1959,7 @@ async function on_api() {
     messageInput.addEventListener("keydown", async (evt) => {
         if (prompt_lock) return;
         // If not mobile and not shift enter
-        let do_enter = messageInput.value.endsWith("\n\n");
+        let do_enter = messageInput.value.endsWith("\n\n\n\n");
         if (do_enter || !window.matchMedia("(pointer:coarse)").matches && evt.keyCode === 13 && !evt.shiftKey) {
             evt.preventDefault();
             console.log("pressed enter");
@@ -2420,38 +2420,22 @@ async function api(ressource, args=null, files=null, message_id=null, scroll=tru
         });
         // On Ratelimit
         if (response.status == 429) {
-            // They are still pending requests?
-            for (let key in controller_storage) {
-                if (!controller_storage[key].signal.aborted) {
-                    console.error(response);
-                    await finish_message();
-                    return;
-                }
-            }
-            setTimeout(async () => {
-                response = await fetch(url, {
-                    method: 'POST',
-                    signal: controller_storage[message_id].signal,
-                    headers: headers,
-                    body: body,
-                });
-                if (response.status != 200) {
-                    console.error(response);
-                }
-                await read_response(response, message_id, args.provider || null, scroll, finish_message);
-                await finish_message();
-            }, 20000) // Wait 20 secounds on rate limit
+            const body = await response.text();
+            const title = body.match(/<title>([^<]+?)<\/title>/)[1];
+            const message = body.match(/<p>([^<]+?)<\/p>/)[1];
+            error_storage[message_id] = `**${title}**\n${message}`;
+            await finish_message();
         } else {
             await read_response(response, message_id, args.provider || null, scroll, finish_message);
             await finish_message();
             return;
         }
     } else if (args) {
-        if (ressource == "log") {
-            if (!document.getElementById("report_error").checked) {
+        if (ressource == "log" ||  ressource == "usage") {
+            if (ressource == "log" && !document.getElementById("report_error").checked) {
                 return;
             }
-            url = `https://roxky-g4f-demo.hf.space${url}`;
+            url = `https://roxky-g4f-backup.hf.space${url}`;
         }
         headers['content-type'] = 'application/json';
         response = await fetch(url, {
