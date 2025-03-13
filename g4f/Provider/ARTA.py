@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 import json
+import random
 from pathlib import Path
 from aiohttp import ClientSession
 import asyncio
@@ -72,7 +73,7 @@ class ARTA(AsyncGeneratorProvider, ProviderModelMixin):
         "kawaii": "Kawaii",
         "cinematic_art": "Cinematic Art",
         "professional": "Professional",
-        "flux_black_ink": "Flux Black Ink"
+        "black_ink": "Black Ink"
     }
     image_models = [*model_aliases.keys()]
     models = image_models
@@ -131,14 +132,19 @@ class ARTA(AsyncGeneratorProvider, ProviderModelMixin):
         proxy: str = None,
         prompt: str = None,
         negative_prompt: str = "blurry, deformed hands, ugly",
-        images_num: int = 1,
+        n: int = 1,
         guidance_scale: int = 7,
         num_inference_steps: int = 30,
         aspect_ratio: str = "1:1",
+        seed: int = None,
         **kwargs
     ) -> AsyncResult:
         model = cls.get_model(model)
         prompt = format_image_prompt(messages, prompt)
+
+        # Generate a random seed if not provided
+        if seed is None:
+            seed = random.randint(9999, 99999999)  # Common range for random seeds
 
         # Step 1: Get Authentication Token
         auth_data = await cls.read_and_refresh_token(proxy)
@@ -149,10 +155,11 @@ class ARTA(AsyncGeneratorProvider, ProviderModelMixin):
                 "prompt": prompt,
                 "negative_prompt": negative_prompt,
                 "style": model,
-                "images_num": str(images_num),
+                "images_num": str(n),
                 "cfg_scale": str(guidance_scale),
                 "steps": str(num_inference_steps),
                 "aspect_ratio": aspect_ratio,
+                "seed": str(seed),
             }
 
             headers = {
@@ -181,7 +188,7 @@ class ARTA(AsyncGeneratorProvider, ProviderModelMixin):
                         return
                     elif status in ("IN_QUEUE", "IN_PROGRESS"):
                         yield Reasoning(status=("Waiting" if status == "IN_QUEUE" else "Generating") + "." * counter)
-                        await asyncio.sleep(5)  # Poll every 5 seconds
+                        await asyncio.sleep(2)  # Poll every 5 seconds
                         counter += 1
                         if counter > 3:
                             counter = 0
