@@ -14,20 +14,19 @@ class LambdaChat(HuggingChat):
     default_model = "deepseek-llama3.3-70b"
     reasoning_model = "deepseek-r1"
     image_models = []
-    models = []
     fallback_models = [
         default_model,
         reasoning_model,
         "hermes-3-llama-3.1-405b-fp8",
-        "hermes3-405b-fp8-128k",
         "llama3.1-nemotron-70b-instruct",
         "lfm-40b",
         "llama3.3-70b-instruct-fp8"
     ]
+    models = fallback_models.copy()
+    
     model_aliases = {
         "deepseek-v3": default_model,
         "hermes-3": "hermes-3-llama-3.1-405b-fp8",
-        "hermes-3": "hermes3-405b-fp8-128k",
         "nemotron-70b": "llama3.1-nemotron-70b-instruct",
         "llama-3.3-70b": "llama3.3-70b-instruct-fp8"
     }
