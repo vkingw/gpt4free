@@ -63,8 +63,6 @@ appStorage = window.localStorage || {
     length: 0
 }
 
-appStorage.getItem("darkMode") == "false" ? document.body.classList.add("white") : null;
-
 let markdown_render = (content) => escapeHtml(content);
 if (window.markdownit) {
     const markdown = window.markdownit();
@@ -81,7 +79,7 @@ if (window.markdownit) {
             .replaceAll('<code>', '<code class="language-plaintext">')
             .replaceAll('&lt;i class=&quot;', '<i class="')
             .replaceAll('&quot;&gt;&lt;/i&gt;', '"></i>')
-            .replaceAll('&lt;video controls src=&quot;', '<video controls width="400" src="')
+            .replaceAll('&lt;video controls src=&quot;', '<video loop autoplay controls muted src="')
             .replaceAll('&quot;&gt;&lt;/video&gt;', '"></video>')
             .replaceAll('&lt;audio controls src=&quot;', '<audio controls src="')
             .replaceAll('&quot;&gt;&lt;/audio&gt;', '"></audio>')
@@ -96,7 +94,8 @@ function render_reasoning(reasoning, final = false) {
     </div>` : "";
     return `<div class="reasoning_body">
         <div class="reasoning_title">
-           <strong>${reasoning.label ? reasoning.label :'Reasoning <i class="brain">🧠</i>'}:</strong> ${escapeHtml(reasoning.status)}
+           <strong>${reasoning.label ? reasoning.label :'Reasoning <i class="brain">🧠</i>'}: </strong>
+           ${reasoning.status ? escapeHtml(reasoning.status) : '&nbsp;<i class="fas fa-spinner fa-spin"></i>'}
         </div>
         ${inner_text}
     </div>`;
@@ -441,6 +440,18 @@ const register_message_buttons = async () => {
         });
     });
 
+    chatBody.querySelectorAll(".message .fa-qrcode").forEach(async (el) => {
+        if (el.dataset.click) {
+            return
+        }
+        el.dataset.click = true;
+        const message_el = get_message_el(el);
+        el.addEventListener("click", async () => {
+            iframe.src = `/qrcode/${window.conversation_id}#${message_el.dataset.index}`;
+            iframe_container.classList.remove("hidden");
+        });
+    });
+
     chatBody.querySelectorAll(".message .reasoning_title").forEach(async (el) => {
         if (el.dataset.click) {
             return
@@ -581,7 +592,7 @@ stop_generating.addEventListener("click", async () => {
             }
         }
     }
-    await load_conversation(window.conversation_id, false);
+    await safe_load_conversation(window.conversation_id, false);
 });
 
 document.querySelector(".media-player .fa-x").addEventListener("click", ()=>{
@@ -881,9 +892,11 @@ async function add_message_chunk(message, message_id, provider, scroll, finish_m
     } else if (message.type == "login") {
         update_message(content_map, message_id, markdown_render(message.login), scroll);
     } else if (message.type == "finish") {
-        finish_storage[message_id] = message.finish;
-        if (finish_message) {
-            await finish_message();
+        if (!finish_storage[message_id]) {
+            finish_storage[message_id] = message.finish;
+            if (finish_message) {
+                await finish_message();
+            }
         }
     } else if (message.type == "usage") {
         usage_storage[message_id] = message.usage;
@@ -1002,7 +1015,7 @@ const ask_gpt = async (message_id, message_index = -1, regenerate = false, provi
             content_map.inner.innerHTML = html;
             highlight(content_map.inner);
         }
-        if (message_storage[message_id] || reasoning_storage[message_id]) {
+        if (message_storage[message_id] || reasoning_storage[message_id]?.status) {
             const message_provider = message_id in provider_storage ? provider_storage[message_id] : null;
             let usage = {};
             if (usage_storage[message_id]) {
@@ -1069,7 +1082,7 @@ const ask_gpt = async (message_id, message_index = -1, regenerate = false, provi
         if (!error_storage[message_id] && reloadConversation) {
             if(await safe_load_conversation(window.conversation_id, scroll)) {
                 const new_message = Array.from(document.querySelectorAll(".message")).at(-1);
-                const new_media = new_message?.querySelector("audio, video, iframe");
+                const new_media = new_message.querySelector("audio, iframe");
                 if (new_media) {
                     if (new_media.tagName == "IFRAME") {
                         if (YT) {
@@ -1087,12 +1100,7 @@ const ask_gpt = async (message_id, message_index = -1, regenerate = false, provi
                             });
                         }
                     } else {
-                        setTimeout(async () => {
-                            if (scroll) {
-                                await lazy_scroll_to_bottom();
-                            }
-                            new_media.play();
-                        }, 2000);
+                        new_media.play();
                     }
                 }
             }
@@ -1100,7 +1108,9 @@ const ask_gpt = async (message_id, message_index = -1, regenerate = false, provi
         let cursorDiv = message_el.querySelector(".cursor");
         if (cursorDiv) cursorDiv.parentNode.removeChild(cursorDiv);
         if (scroll) {
-            await lazy_scroll_to_bottom();
+            setTimeout(async () => {
+                await lazy_scroll_to_bottom();
+            }, 2000);
         }
         await safe_remove_cancel_button();
         await register_message_images();
@@ -1157,11 +1167,6 @@ const ask_gpt = async (message_id, message_index = -1, regenerate = false, provi
         }, Object.values(image_storage), message_id, scroll, finish_message);
     } catch (e) {
         console.error(e);
-        if (e.name != "AbortError") {
-            error_storage[message_id] = true;
-            content_map.inner.innerHTML += markdown_render(`**An error occured:** ${e}`);
-        }
-        await finish_message();
     }
 };
 
@@ -1300,22 +1305,24 @@ const set_conversation = async (conversation_id) => {
     window.conversation_id = conversation_id;
 
     await clear_conversation();
-    await load_conversation(conversation_id);
+    await load_conversation(await get_conversation(conversation_id));
     load_conversations();
     hide_sidebar(true);
 };
 
 const new_conversation = async () => {
     history.pushState({}, null, `/chat/`);
+    window.chat_id = null;
     window.conversation_id = uuid();
     document.title = window.title || document.title;
+    document.querySelector(".chat-header").innerText = "New Conversation - G4F";
 
     await clear_conversation();
     if (chatPrompt) {
         chatPrompt.value = document.getElementById("systemPrompt")?.value;
     }
     load_conversations();
-    hide_sidebar();
+    hide_sidebar(true);
     say_hello();
 };
 
@@ -1364,20 +1371,24 @@ function merge_messages(message1, message2) {
 // console.log(merge_messages("1 != 2", "```python\n1 != 2;"));
 // console.log(merge_messages("1 != 2;\n1 != 3;\n", "1 != 2;\n1 != 3;\n"));
 
-const load_conversation = async (conversation_id, scroll=true) => {
-    let conversation = await get_conversation(conversation_id);
-    let messages = conversation?.items || [];
-    console.debug("Conversation:", conversation)
-
+const load_conversation = async (conversation, scroll=true) => {
     if (!conversation) {
         return;
     }
-    let title = conversation.title || conversation.new_title;
+    let messages = conversation?.items || [];
+    console.debug("Conversation:", conversation.id)
+
+    let title = conversation.new_title || conversation.title;
     title = title ? `${title} - G4F` : window.title;
     if (title) {
         document.title = title;
     }
-    document.querySelector(".chat-header").innerText = title;
+    const chatHeader = document.querySelector(".chat-header");
+    if (window.chat_id) {
+        chatHeader.innerHTML = '<i class="fa-solid fa-qrcode"></i> ' + escapeHtml(title);
+    } else {
+        chatHeader.innerText = title;
+    }
 
     if (chatPrompt) {
         chatPrompt.value = conversation.system || "";
@@ -1448,6 +1459,7 @@ const load_conversation = async (conversation_id, scroll=true) => {
 
         add_buttons.push(`<button class="options_button">
             <div>
+                <span><i class="fa-solid fa-qrcode"></i></span>
                 <span><i class="fa-brands fa-whatsapp"></i></span>
                 <span><i class="fa-solid fa-volume-high"></i></i></span>
                 <span><i class="fa-solid fa-print"></i></span>
@@ -1550,7 +1562,8 @@ async function safe_load_conversation(conversation_id, scroll=true) {
         }
     }
     if (!is_running) {
-        return await load_conversation(conversation_id, scroll);
+        let conversation = await get_conversation(conversation_id);
+        return await load_conversation(conversation, scroll);
     }
 }
 
@@ -1563,10 +1576,14 @@ async function get_conversation(conversation_id) {
 
 async function save_conversation(conversation_id, conversation) {
     conversation.updated = Date.now();
+    const data = JSON.stringify(conversation)
     appStorage.setItem(
         `conversation:${conversation_id}`,
-        JSON.stringify(conversation)
+        data
     );
+    if (conversation_id != window.start_id) {
+        window.chat_id = null;
+    }
 }
 
 async function get_messages(conversation_id) {
@@ -1617,6 +1634,14 @@ const remove_message = async (conversation_id, index) => {
     }
     conversation.items = new_items;
     await save_conversation(conversation_id, conversation);
+    if (window.chat_id) {
+        const url = `${window.share_url}/backend-api/v2/chat/${window.chat_id}`;
+        await fetch(url, {
+            method: 'POST',
+            headers: {'content-type': 'application/json'},
+            body: data,
+        });
+    }
 };
 
 const get_message = async (conversation_id, index) => {
@@ -1685,6 +1710,14 @@ const add_message = async (
         conversation.items = new_messages;
     }
     await save_conversation(conversation_id, conversation);
+    if (window.chat_id) {
+        const url = `${window.share_url}/backend-api/v2/chat/${window.chat_id}`;
+        fetch(url, {
+            method: 'POST',
+            headers: {'content-type': 'application/json'},
+            body: JSON.stringify(conversation),
+        });
+    }
     return conversation.items.length - 1;
 };
 
@@ -2021,12 +2054,66 @@ chatPrompt.addEventListener("input", function() {
 });
 
 window.addEventListener('load', async function() {
+    if (!window.chat_id) {
+        return await load_conversation(JSON.parse(appStorage.getItem(`conversation:${window.conversation_id}`)));
+    }
+    if (!window.conversation_id) {
+        window.conversation_id = window.chat_id;
+    }
+    window.start_id = window.conversation_id
+    const response = await fetch(`${window.share_url}/backend-api/v2/chat/${window.chat_id ? window.chat_id : window.conversation_id}`, {
+        headers: {'accept': 'application/json'},
+    });
+    if (!response.ok) {
+        return await load_conversation(JSON.parse(appStorage.getItem(`conversation:${window.conversation_id}`)));
+    }
+    let conversation = await response.json();
+    if (!window.conversation_id || conversation.id == window.conversation_id) {
+        window.conversation_id = conversation.id;
+        await load_conversation(conversation);       
+        appStorage.setItem(
+            `conversation:${conversation.id}`,
+            JSON.stringify(conversation)
+        );
+        let refreshOnHide = true;
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) {
+                refreshOnHide = false;
+            } else {
+                refreshOnHide = true;
+            }
+        });
+        var refreshIntervalId = setInterval(async () => {
+            if (!window.chat_id) {
+                clearInterval(refreshIntervalId);
+                return;
+            }
+            if (!refreshOnHide) {
+                return;
+            }
+            const response = await fetch(`${window.share_url}/backend-api/v2/chat/${window.chat_id}`, {
+                headers: {'accept': 'application/json', 'if-none-match': conversation.updated},
+            });
+            if (response.status == 200) {
+                const new_conversation = await response.json();
+                if (conversation.id == window.conversation_id && new_conversation.updated != conversation.updated) {
+                    conversation = new_conversation;
+                    appStorage.setItem(
+                        `conversation:${conversation.id}`,
+                        JSON.stringify(conversation)
+                    );
+                    await load_conversation(conversation);
+                }
+            }
+        }, 5000);
+        return;
+    }
     await safe_load_conversation(window.conversation_id, false);
 });
 
 window.addEventListener('DOMContentLoaded', async function() {
     await on_load();
-    if (window.conversation_id == "{{chat_id}}") {
+    if (window.conversation_id == "{{conversation_id}}") {
         window.conversation_id = uuid();
     } else {
         await on_api();
@@ -2289,11 +2376,9 @@ async function on_api() {
     );
 
     const hide_systemPrompt = document.getElementById("hide-systemPrompt")
-    const slide_systemPrompt_icon = document.querySelector(".slide-systemPrompt i");
+    const slide_systemPrompt_icon = document.querySelector(".slide-header i");
     if (hide_systemPrompt.checked) {
         chatPrompt.classList.add("hidden");
-        slide_systemPrompt_icon.classList.remove("fa-angles-up");
-        slide_systemPrompt_icon.classList.add("fa-angles-down");
     }
     hide_systemPrompt.addEventListener('change', async (event) => {
         if (event.target.checked) {
@@ -2302,10 +2387,10 @@ async function on_api() {
             chatPrompt.classList.remove("hidden");
         }
     });
-    document.querySelector(".slide-systemPrompt")?.addEventListener("click", () => {
-        hide_systemPrompt.click();
-        const checked = hide_systemPrompt.checked;
-        chatPrompt.classList[checked ? "add": "remove"]("hidden");
+    document.querySelector(".slide-header")?.addEventListener("click", () => {
+        const checked = slide_systemPrompt_icon.classList.contains("fa-angles-up");
+        document.querySelector(".chat-header").classList[checked ? "add": "remove"]("hidden");
+        chatPrompt.classList[checked || hide_systemPrompt.checked ? "add": "remove"]("hidden");
         slide_systemPrompt_icon.classList[checked ? "remove": "add"]("fa-angles-up");
         slide_systemPrompt_icon.classList[checked ? "add": "remove"]("fa-angles-down");
     });
@@ -2361,7 +2446,6 @@ async function load_version() {
 }
 
 function renderMediaSelect() {
-    mediaSelect.classList.remove("hidden");
     const oldImages = mediaSelect.querySelectorAll("a:has(img)");
     oldImages.forEach((el)=>el.remove());
     Object.entries(image_storage).forEach(([object_url, file]) => {
@@ -2472,9 +2556,14 @@ function connectToSSE(url, do_refine, bucket_id) {
             inputCount.innerText = `Download: ${data.count} files`;
         } else if (data.action == "done") {
             if (do_refine) {
-                do_refine = false;
-                connectToSSE(`/backend-api/v2/files/${bucket_id}?refine_chunks_with_spacy=true`, do_refine, bucket_id);
+                connectToSSE(`/backend-api/v2/files/${bucket_id}?refine_chunks_with_spacy=true`, false, bucket_id);
                 return;
+            }
+            fileInput.value = "";
+            paperclip.classList.remove("blink");
+            if (!data.size) {
+                inputCount.innerText = "No content found";
+                return
             }
             appStorage.setItem(`bucket:${bucket_id}`, data.size);
             inputCount.innerText = "Files are loaded successfully";
@@ -2483,8 +2572,6 @@ function connectToSSE(url, do_refine, bucket_id) {
                 handle_ask(false);
             } else {
                 userInput.value += (userInput.value ? "\n" : "") + JSON.stringify({bucket_id: bucket_id}) + "\n";
-                paperclip.classList.remove("blink");
-                fileInput.value = "";
             }
         }
     };
@@ -2518,9 +2605,10 @@ async function upload_files(fileInput) {
     }
     if (result.media) {
         result.media.forEach((filename)=> {
-            const url = `/backend-api/v2/files/${bucket_id}/media/${filename}`;
+            const url = `/files/${bucket_id}/media/${filename}`;
             image_storage[url] = {bucket_id: bucket_id, name: filename};
         });
+        mediaSelect.classList.remove("hidden");
         renderMediaSelect();
     }
 }
@@ -2661,8 +2749,12 @@ async function api(ressource, args=null, files=null, message_id=null, scroll=tru
             await finish_message();
             return;
         } else {
-            await read_response(response, message_id, args.provider || null, scroll, finish_message);
-            await finish_message();
+            try {
+                await read_response(response, message_id, args.provider || null, scroll, finish_message);
+                await finish_message();
+            } catch (e) {
+                console.error(e);
+            }
             return;
         }
     } else if (args) {
