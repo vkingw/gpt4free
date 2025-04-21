@@ -20,16 +20,17 @@ except ImportError:
 
 from ... import debug
 from ...typing import Messages, Cookies, MediaListType, AsyncResult, AsyncIterator
-from ...providers.response import JsonConversation, Reasoning, RequestLogin, ImageResponse, YouTube
+from ...providers.response import JsonConversation, Reasoning, RequestLogin, ImageResponse, YouTube, AudioResponse
 from ...requests.raise_for_status import raise_for_status
 from ...requests.aiohttp import get_connector
 from ...requests import get_nodriver
+from ...image.copy_images import get_filename, get_media_dir, ensure_media_dir
 from ...errors import MissingAuthError
 from ...image import to_bytes
 from ...cookies import get_cookies_dir
 from ...tools.media import merge_media
 from ..base_provider import AsyncGeneratorProvider, ProviderModelMixin
-from ..helper import format_prompt, get_cookies, get_last_user_message
+from ..helper import format_prompt, get_cookies, get_last_user_message, format_image_prompt
 from ... import debug
 
 REQUEST_HEADERS = {
@@ -68,6 +69,7 @@ models = {
     "gemini-2.0-flash-exp": {"x-goog-ext-525001261-jspb": '[null,null,null,null,"f299729663a2343f"]'},
     "gemini-2.0-flash-thinking": {"x-goog-ext-525001261-jspb": '[null,null,null,null,"9c17b1863f581b8a"]'},
     "gemini-2.0-flash-thinking-with-apps": {"x-goog-ext-525001261-jspb": '[null,null,null,null,"f8f8f5ea629f5d37"]'},
+    "gemini-audio": {}
 }
 
 class Gemini(AsyncGeneratorProvider, ProviderModelMixin):
@@ -153,8 +155,20 @@ class Gemini(AsyncGeneratorProvider, ProviderModelMixin):
         return_conversation: bool = False,
         conversation: Conversation = None,
         language: str = "en",
+        prompt: str = None,
+        audio: dict = None,
         **kwargs
     ) -> AsyncResult:
+        if audio is not None or model == "gemini-audio":
+            prompt = format_image_prompt(messages, prompt)
+            filename = get_filename(["gemini"], prompt, ".ogx", prompt)
+            ensure_media_dir()
+            path = os.path.join(get_media_dir(), filename)
+            with open(path, "wb") as f:
+                async for chunk in cls.synthesize({"text": prompt}, proxy):
+                    f.write(chunk)
+            yield AudioResponse(f"/media/{filename}", text=prompt)
+            return
         cls._cookies = cookies or cls._cookies or get_cookies(GOOGLE_COOKIE_DOMAIN, False, True)
         if conversation is not None and getattr(conversation, "model", None) != model:
             conversation = None
@@ -217,6 +231,7 @@ class Gemini(AsyncGeneratorProvider, ProviderModelMixin):
                     await raise_for_status(response)
                     image_prompt = response_part = None
                     last_content = ""
+                    youtube_ids = []
                     async for line in response.content:
                         try:
                             try:
@@ -232,6 +247,11 @@ class Gemini(AsyncGeneratorProvider, ProviderModelMixin):
                                 continue
                             if return_conversation:
                                 yield Conversation(response_part[1][0], response_part[1][1], response_part[4][0][0], model)
+                            def find_youtube_ids(content: str):
+                                pattern = re.compile(r"http://www.youtube.com/watch\?v=([\w-]+)")
+                                for match in pattern.finditer(content):
+                                    if match.group(1) not in youtube_ids:
+                                        yield match.group(1)
                             def read_recusive(data):
                                 for item in data:
                                     if isinstance(item, list):
@@ -253,6 +273,7 @@ class Gemini(AsyncGeneratorProvider, ProviderModelMixin):
                             reasoning = re.sub(r"\nyoutube_tool\n", "\n\n", reasoning)
                             reasoning = re.sub(r"\nYouTube\n", "\nYouTube ", reasoning)
                             reasoning = reasoning.replace('\nhttps://www.gstatic.com/images/branding/productlogos/youtube/v9/192px.svg', '<i class="fa-brands fa-youtube"></i>')
+                            youtube_ids = list(find_youtube_ids(reasoning))
                             content = response_part[4][0][1][0]
                             if reasoning:
                                 yield Reasoning(reasoning, status="🤔")
@@ -283,11 +304,7 @@ class Gemini(AsyncGeneratorProvider, ProviderModelMixin):
                                 yield ImageResponse(images, image_prompt, {"cookies": cls._cookies})
                             except (TypeError, IndexError, KeyError):
                                 pass
-                        youtube_ids = []
-                        pattern = re.compile(r"http://www.youtube.com/watch\?v=([\w-]+)")
-                        for match in pattern.finditer(content):
-                            if match.group(1) not in youtube_ids:
-                                youtube_ids.append(match.group(1))
+                        youtube_ids = youtube_ids if youtube_ids else find_youtube_ids(content)
                         if youtube_ids:
                             yield YouTube(youtube_ids)
 
