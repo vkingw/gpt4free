@@ -585,8 +585,8 @@ async def get_async_streaming(bucket_dir: str, delete_files = False, refine_chun
             yield f'data: {json.dumps({"error": {"message": str(e)}})}\n\n'
         raise e
 
-def get_tempfile(file, suffix):
-    copyfile = tempfile.NamedTemporaryFile(suffix=os.path.splitext(suffix)[-1], delete=False)
+def get_tempfile(file, suffix: str = None):
+    copyfile = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
     shutil.copyfileobj(file, copyfile)
     copyfile.close()
     file.close()
