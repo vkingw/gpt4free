@@ -13,7 +13,7 @@ from ...tools.run_tools import iter_run_tools
 from ... import Provider
 from ...providers.base_provider import ProviderModelMixin
 from ...providers.retry_provider import BaseRetryProvider
-from ...providers.helper import format_image_prompt
+from ...providers.helper import format_media_prompt
 from ...providers.response import *
 from ... import version, models
 from ... import ChatCompletion, get_model_and_provider
@@ -147,10 +147,10 @@ class Api:
         }
 
     def _create_response_stream(self, kwargs: dict, provider: str, download_media: bool = True, tempfiles: list[str] = []) -> Iterator:
-        def decorated_log(text: str, file = None):
-            debug.logs.append(text)
+        def decorated_log(*values: str, file = None):
+            debug.logs.append(" ".join([str(value) for value in values]))
             if debug.logging:
-                debug.log_handler(text, file=file)
+                debug.log_handler(*values, file=file)
         debug.log = decorated_log
         proxy = os.environ.get("G4F_PROXY")
         provider = kwargs.get("provider")
@@ -194,7 +194,7 @@ class Api:
                 elif isinstance(chunk, MediaResponse):
                     media = chunk
                     if download_media or chunk.get("cookies"):
-                        chunk.alt = format_image_prompt(kwargs.get("messages"), chunk.alt)
+                        chunk.alt = format_media_prompt(kwargs.get("messages"), chunk.alt)
                         tags = [model, kwargs.get("aspect_ratio"), kwargs.get("resolution"), kwargs.get("width"), kwargs.get("height")]
                         media = asyncio.run(copy_media(chunk.get_list(), chunk.get("cookies"), chunk.get("headers"), proxy=proxy, alt=chunk.alt, tags=tags))
                         media = ImageResponse(media, chunk.alt) if isinstance(chunk, ImageResponse) else VideoResponse(media, chunk.alt)
@@ -257,7 +257,7 @@ class Api:
         }
 
     def handle_provider(self, provider_handler, model):
-        if model:
+        if not getattr(provider_handler, "model", False):
             return self._format_json("provider", {**provider_handler.get_dict(), "model": model})
         return self._format_json("provider", provider_handler.get_dict())
 
