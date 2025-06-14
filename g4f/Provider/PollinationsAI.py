@@ -374,7 +374,7 @@ class PollinationsAI(AsyncGeneratorProvider, ProviderModelMixin):
         if model == "gptimage":
             n = 1
             # Only remote images are supported
-            image = [item[0] for item in media if isinstance(item[0], str) and item[0].startswith("http")]
+            image = [item[0] for item in media if isinstance(item[0], str) and item[0].startswith("http")] if media else []
             params = {
                 **params,
                 "image": ",".join(image) if image else "",
@@ -531,9 +531,20 @@ class PollinationsAI(AsyncGeneratorProvider, ProviderModelMixin):
                     if reasoning:
                         yield Reasoning(status="")
                     if kwargs.get("action") == "next":
+                        safe_messages = []
+                        for message in messages:
+                            if message.get("role") == "user":
+                                if isinstance(message.get("content"), str):
+                                    safe_messages.append({"role": "user", "content": message.get("content")})
+                                elif isinstance(message.get("content"), list):
+                                    next_value = message.get("content").pop()
+                                    if isinstance(next_value, dict):
+                                        next_value = next_value.get("text")
+                                        if next_value:
+                                            safe_messages.append({"role": "user", "content": next_value})
                         data = {
                             "model": "openai",
-                            "messages": [m for m in messages if m.get("role") == "user"] + FOLLOWUPS_DEVELOPER_MESSAGE,
+                            "messages": safe_messages + FOLLOWUPS_DEVELOPER_MESSAGE,
                             "tool_choice": "required",
                             "tools": FOLLOWUPS_TOOLS
                         }
