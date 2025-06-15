@@ -11,6 +11,7 @@ from ...providers.response import FinishReason, Usage, Reasoning, ToolCalls
 from ...tools.media import render_messages
 from ...requests import see_stream, raise_for_status
 from ...errors import ResponseError, ModelNotFoundError, MissingAuthError
+from ..helper import format_media_prompt
 from .. import debug
 
 class PuterJS(AsyncGeneratorProvider, ProviderModelMixin):
@@ -28,8 +29,6 @@ class PuterJS(AsyncGeneratorProvider, ProviderModelMixin):
     claude_models = ["claude-3-7-sonnet-20250219", "claude-3-7-sonnet-latest", "claude-3-5-sonnet-20241022", "claude-3-5-sonnet-latest", "claude-3-5-sonnet-20240620", "claude-3-haiku-20240307"]
     mistral_models = ["ministral-3b-2410","ministral-3b-latest","ministral-8b-2410","ministral-8b-latest","open-mistral-7b","mistral-tiny","mistral-tiny-2312","open-mixtral-8x7b","mistral-small","mistral-small-2312","open-mixtral-8x22b","open-mixtral-8x22b-2404","mistral-large-2411","mistral-large-latest","pixtral-large-2411","pixtral-large-latest","mistral-large-pixtral-2411","codestral-2501","codestral-latest","codestral-2412","codestral-2411-rc5","pixtral-12b-2409","pixtral-12b","pixtral-12b-latest","mistral-small-2503","mistral-small-latest"]
     xai_models = ["grok-beta", "grok-vision-beta"]
-    deepseek_models = ["deepseek-chat","deepseek-reasoner"]
-    gemini_models = ["gemini-1.5-flash","gemini-2.0-flash"]    
     model_aliases = {              
         ### mistral_models ###
         "mixtral-8x22b": ["open-mixtral-8x22b", "open-mixtral-8x22b-2404"],
@@ -260,15 +259,18 @@ class PuterJS(AsyncGeneratorProvider, ProviderModelMixin):
     }
 
     @classmethod
-    def get_models(cls, api_key: str = None) -> list[str]:
+    def get_models(cls, **kwargs) -> list[str]:
         if not cls.models:
             try:
                 url = "https://api.puter.com/puterai/chat/models/"
                 cls.models = requests.get(url).json().get("models", [])
-                cls.models = [model for model in cls.models if model not in ["abuse", "costly", "fake"]]
+                cls.models = [model for model in cls.models if "/" not in model and model not in ["abuse", "costly", "fake", "model-fallback-test-1"]]
             except Exception as e:
                 debug.log(f"PuterJS: Failed to fetch models from API: {e}")
-                cls.models = list(cls.model_aliases.keys())
+                cls.models = []
+            cls.models += [model for model in cls.model_aliases.keys() if model not in cls.models]
+            openrouter_models = [model for model in cls.models if "openrouter:" in model]
+            cls.models = [model for model in cls.models if model not in openrouter_models] + openrouter_models
             cls.vision_models = []
             for model in cls.models:
                 for tag in ["vision", "multimodal", "gpt", "o1", "o3", "o4"]:
@@ -287,12 +289,12 @@ class PuterJS(AsyncGeneratorProvider, ProviderModelMixin):
             return "mistral"
         elif model in PuterJS.xai_models:
             return "xai"
-        elif model in PuterJS.deepseek_models:
-            return "deepseek"
-        elif model in PuterJS.gemini_models:
-            return "gemini"
         elif "openrouter:" in model:
             return "openrouter"
+        elif "deepseek" in model:
+            return "deepseek"
+        elif "gemini" in model:
+            return "gemini"
         else:
             # Default to OpenAI for unknown models
             return "openai-completion"
@@ -303,10 +305,6 @@ class PuterJS(AsyncGeneratorProvider, ProviderModelMixin):
 
         if not model:
             return cls.default_model
-
-        # Check if the model exists directly in our models list
-        if model in cls.models:
-            return model
         
         # Check if there's an alias for this model
         if model in cls.model_aliases:
@@ -319,6 +317,10 @@ class PuterJS(AsyncGeneratorProvider, ProviderModelMixin):
             debug.log(f"PuterJS: Using model '{alias}' for alias '{model}'")
             return alias
 
+        # Check if the model exists directly in our models list
+        if model in cls.models:
+            return model
+
         raise ModelNotFoundError(f"Model {model} not found")
 
     @classmethod
@@ -326,6 +328,7 @@ class PuterJS(AsyncGeneratorProvider, ProviderModelMixin):
         cls,
         model: str,
         messages: Messages,
+        prompt: str = None,
         proxy: str = None,
         stream: bool = True,
         api_key: str = None,
@@ -334,6 +337,9 @@ class PuterJS(AsyncGeneratorProvider, ProviderModelMixin):
     ) -> AsyncResult:
         if not api_key:
             raise MissingAuthError("API key is required for Puter.js API")
+
+        if not cls.models:
+            cls.get_models()
 
         # Check if we need to use a vision model
         if not model and media is not None and len(media) > 0:
@@ -376,11 +382,11 @@ class PuterJS(AsyncGeneratorProvider, ProviderModelMixin):
             driver = cls.get_driver_for_model(model)
 
             json_data = {
-                "interface": "puter-chat-completion",
+                "interface": "puter-image-generation" if model in cls.image_models else "puter-chat-completion",
                 "driver": driver,
-                "test_mode": False,
-                "method": "complete",
-                "args": {
+                "test_mode": messages[0]["content"] == "test",
+                "method": "generate" if model in cls.image_models else "complete",
+                "args": {"prompt": format_media_prompt(messages, prompt)} if model in cls.image_models else {
                     "messages": list(render_messages(messages, media)),
                     "model": model,
                     "stream": stream,
@@ -403,25 +409,26 @@ class PuterJS(AsyncGeneratorProvider, ProviderModelMixin):
                     async for result in see_stream(response.content):
                         if "error" in result:
                             raise ResponseError(result["error"].get("message", result["error"]))
-                        if result.get("usage") is not None:
-                            yield Usage(**result["usage"])
                         choices = result.get("choices", [{}])
                         choice = choices.pop() if choices else {}
                         content = choice.get("delta", {}).get("content")
-                        if content:
-                            yield content
-                        tool_calls = choice.get("delta", {}).get("tool_calls")
-                        if tool_calls:
-                            yield ToolCalls(choice["delta"]["tool_calls"])
                         reasoning_content = choice.get("delta", {}).get("reasoning_content")
                         if reasoning_content:
                             reasoning = True
                             yield Reasoning(reasoning_content)
+                        elif content:
+                            if reasoning:
+                                yield Reasoning(status="")
+                                reasoning = False
+                            yield content
+                        if result.get("usage") is not None:
+                            yield Usage(**result["usage"])
+                        tool_calls = choice.get("delta", {}).get("tool_calls")
+                        if tool_calls:
+                            yield ToolCalls(choice["delta"]["tool_calls"])
                         finish_reason = choice.get("finish_reason")
                         if finish_reason:
                             yield FinishReason(finish_reason)
-                    if reasoning:
-                        yield Reasoning(status="Done")
                 elif mime_type.startswith("application/json"):
                     result = await response.json()
                     if "choices" in result:
@@ -431,8 +438,15 @@ class PuterJS(AsyncGeneratorProvider, ProviderModelMixin):
                     else:
                         raise ResponseError(result)
                     message = choice.get("message", {})
+                    reasoning_content = message.get("reasoning_content")
+                    if reasoning_content:
+                        yield Reasoning(reasoning_content)
                     content = message.get("content", "")
-                    if content:
+                    if isinstance(content, list):
+                        for item in content:
+                            if item.get("type") == "text":
+                                yield item.get("text", "")
+                    elif content:
                         yield content
                     if "tool_calls" in message:
                         yield ToolCalls(message["tool_calls"])

@@ -116,6 +116,8 @@ def is_valid_media(data: ImageType = None, filename: str = None) -> str:
             media_type = EXTENSIONS_MAP[extension]
             if media_type.startswith("image/"):
                 return media_type
+    if not data:
+        return False
     if isinstance(data, bytes):
         return is_accepted_format(data)
     return is_data_uri_an_image(data)
@@ -214,7 +216,7 @@ def get_orientation(image: Image) -> int:
         if orientation is not None:
             return orientation
 
-def process_image(image: Image, new_width: int, new_height: int) -> Image:
+def process_image(image: Image, new_width: int = 1000, new_height: int = 1000) -> Image:
     """
     Processes the given image by adjusting its orientation and resizing it.
 
@@ -310,25 +312,30 @@ def to_input_audio(audio: ImageType, filename: str = None) -> str:
 def use_aspect_ratio(extra_body: dict, aspect_ratio: str) -> Image:
     extra_body = {key: value for key, value in extra_body.items() if value is not None}
     if extra_body.get("width") is None or extra_body.get("height") is None:
-        if aspect_ratio == "1:1":
-            extra_body = {
-                "width": extra_body.get("width", 1024),
-                "height": extra_body.get("height", 1024),
-                **extra_body
-            }
-        elif aspect_ratio == "16:9":
-            extra_body = {
-                "width": extra_body.get("width", 832),
-                "height": extra_body.get("height", 480),
-                **extra_body
-            }
-        elif aspect_ratio == "9:16":
-            extra_body = {
-                "width": extra_body.get("width", 480),
-                "height": extra_body.get("height", 832),
-                **extra_body
-            }
+        width, height = get_width_height(
+            aspect_ratio,
+            extra_body.get("width"),
+            extra_body.get("height")
+        )
+        extra_body = {
+            "width": width,
+            "height": height,
+            **extra_body
+        }
     return extra_body
+
+def get_width_height(
+    aspect_ratio: str,
+    width: Optional[int] = None,
+    height: Optional[int] = None
+) -> tuple[int, int]:
+    if aspect_ratio == "1:1":
+        return width or 1024, height or 1024
+    elif aspect_ratio == "16:9":
+        return width or 832, height or 480
+    elif aspect_ratio == "9:16":
+        return width or 480, height or 832,
+    return width, height
 
 class ImageRequest:
     def __init__(

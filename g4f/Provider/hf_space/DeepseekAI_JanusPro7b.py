@@ -38,6 +38,7 @@ class DeepseekAI_JanusPro7b(AsyncGeneratorProvider, ProviderModelMixin):
     image_models = [default_image_model]
     vision_models = [default_vision_model]
     models = vision_models + image_models
+    model_aliases = {}
 
     @classmethod
     def run(cls, method: str, session: StreamSession, prompt: str, conversation: JsonConversation, image: dict = None, seed: int = 0):
@@ -152,7 +153,7 @@ class DeepseekAI_JanusPro7b(AsyncGeneratorProvider, ProviderModelMixin):
                                     json_data['output']['error'] = json_data['output']['error'].split(" <a ")[0]
                                     raise ResponseError("Missing images input" if json_data['output']['error'] and "AttributeError" in json_data['output']['error'] else json_data['output']['error'])
                                 if 'output' in json_data and 'data' in json_data['output']:
-                                    yield Reasoning(status="Finished")
+                                    yield Reasoning(status="")
                                     if "image" in json_data['output']['data'][0][0]:
                                         yield ImageResponse([image["image"]["url"] for image in json_data['output']['data'][0]], prompt)
                                     else:
