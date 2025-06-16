@@ -7,9 +7,10 @@ import base64
 from io import BytesIO
 from pathlib import Path
 from typing import Optional
+
 try:
-    from PIL.Image import open as open_image, new as new_image
-    from PIL.Image import FLIP_LEFT_RIGHT, ROTATE_180, ROTATE_270, ROTATE_90
+    from PIL import Image, ImageOps
+    from PIL import open as open_image
     has_requirements = True
 except ImportError:
     has_requirements = False
@@ -152,9 +153,11 @@ def is_data_uri_an_image(data_uri: str) -> bool:
     Raises:
         ValueError: If the data URI is invalid or the image format is not allowed.
     """
+    if data_uri.startswith("https:") or data_uri.startswith("http:"):
+        return True
     # Check if the data URI starts with 'data:image' and contains an image format (e.g., jpeg, png, gif)
     if not re.match(r'data:image/(\w+);base64,', data_uri):
-        raise ValueError("Invalid data URI image.")
+        raise ValueError(f"Invalid data URI image. {data_uri[:10]}...")
     # Extract the image format from the data URI
     image_format = re.match(r'data:image/(\w+);base64,', data_uri).group(1).lower()
     # Check if the image format is one of the allowed formats (jpg, jpeg, png, gif)
@@ -200,23 +203,7 @@ def extract_data_uri(data_uri: str) -> bytes:
     data = base64.b64decode(data)
     return data
 
-def get_orientation(image: Image) -> int:
-    """
-    Gets the orientation of the given image.
-
-    Args:
-        image (Image): The image.
-
-    Returns:
-        int: The orientation value.
-    """
-    exif_data = image.getexif() if hasattr(image, 'getexif') else image._getexif()
-    if exif_data is not None:
-        orientation = exif_data.get(274) # 274 corresponds to the orientation tag in EXIF
-        if orientation is not None:
-            return orientation
-
-def process_image(image: Image, new_width: int = 1000, new_height: int = 1000) -> Image:
+def process_image(image: Image, new_width: int = 800, new_height: int = 400, save: str = None) -> Image:
     """
     Processes the given image by adjusting its orientation and resizing it.
 
@@ -228,28 +215,19 @@ def process_image(image: Image, new_width: int = 1000, new_height: int = 1000) -
     Returns:
         Image: The processed image.
     """
-    # Fix orientation
-    orientation = get_orientation(image)
-    if orientation:
-        if orientation > 4:
-            image = image.transpose(FLIP_LEFT_RIGHT)
-        if orientation in [3, 4]:
-            image = image.transpose(ROTATE_180)
-        if orientation in [5, 6]:
-            image = image.transpose(ROTATE_270)
-        if orientation in [7, 8]:
-            image = image.transpose(ROTATE_90)
-    # Resize image
+    image = ImageOps.exif_transpose(image)
     image.thumbnail((new_width, new_height))
     # Remove transparency
     if image.mode == "RGBA":
         image.load()
-        white = new_image('RGB', image.size, (255, 255, 255))
+        white = open_image('RGB', image.size, (255, 255, 255))
         white.paste(image, mask=image.split()[-1])
         return white
     # Convert to RGB for jpg format
     elif image.mode != "RGB":
         image = image.convert("RGB")
+    elif save is not None:
+        image.save(save, exif=b"")
     return image
 
 def to_bytes(image: ImageType) -> bytes:
