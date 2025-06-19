@@ -82,6 +82,7 @@ from g4f import debug
 logger = logging.getLogger(__name__)
 
 DEFAULT_PORT = 1337
+DEFAULT_TIMEOUT = 600
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -89,9 +90,10 @@ async def lifespan(app: FastAPI):
     if not AppConfig.ignore_cookie_files:
         read_cookie_files()
     yield
-    for browser in util.get_registered_instances():
-        if browser.connection:
-            browser.stop()
+    if has_nodriver:
+        for browser in util.get_registered_instances():
+            if browser.connection:
+                browser.stop()
 
 def create_app():
     app = FastAPI(lifespan=lifespan)
@@ -141,6 +143,7 @@ def create_app_with_demo_and_debug():
     g4f.debug.logging = True
     AppConfig.gui = True
     AppConfig.demo = True
+    AppConfig.timeout = 60
     return create_app()
 
 class ErrorResponse(Response):
@@ -169,6 +172,7 @@ class AppConfig:
     proxy: str = None
     gui: bool = False
     demo: bool = False
+    timeout: int = DEFAULT_TIMEOUT
 
     @classmethod
     def set_config(cls, **data):
@@ -347,6 +351,8 @@ class Api:
                     config.provider = AppConfig.provider if provider is None else provider
                 if config.conversation_id is None:
                     config.conversation_id = conversation_id
+                if config.timeout is None:
+                    config.timeout = AppConfig.timeout
                 if credentials is not None and credentials.credentials != "secret":
                     config.api_key = credentials.credentials
 
