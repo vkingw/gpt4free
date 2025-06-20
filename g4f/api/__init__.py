@@ -5,6 +5,7 @@ import json
 import uvicorn
 import secrets
 import os
+import re
 import shutil
 from email.utils import formatdate
 import os.path
@@ -60,7 +61,7 @@ import g4f.debug
 from g4f.client import AsyncClient, ChatCompletion, ImagesResponse, ClientResponse
 from g4f.providers.response import BaseConversation, JsonConversation
 from g4f.client.helper import filter_none
-from g4f.image import is_data_an_media, process_image, EXTENSIONS_MAP
+from g4f.image import EXTENSIONS_MAP, is_data_an_media, process_image
 from g4f.image.copy_images import get_media_dir, copy_media, get_source_url
 from g4f.errors import ProviderNotFoundError, ModelNotFoundError, MissingAuthError, NoValidHarFileError, MissingRequirementsError
 from g4f.cookies import read_cookie_files, get_cookies_dir
@@ -94,6 +95,12 @@ async def lifespan(app: FastAPI):
         for browser in util.get_registered_instances():
             if browser.connection:
                 browser.stop()
+        lock_file = os.path.join(get_cookies_dir(), ".nodriver_is_open")
+        if os.path.exists(lock_file):
+            try:
+                os.remove(lock_file)
+            except Exception as e:
+                debug.error(f"Failed to remove lock file {lock_file}:" ,e)
 
 def create_app():
     app = FastAPI(lifespan=lifespan)
@@ -116,12 +123,8 @@ def create_app():
     if AppConfig.gui:
         if not has_a2wsgi:
             raise MissingRequirementsError("a2wsgi is required for GUI. Install it with: pip install a2wsgi")
-        gui_app = WSGIMiddleware(get_gui_app(AppConfig.demo))
+        gui_app = WSGIMiddleware(get_gui_app(AppConfig.demo, AppConfig.timeout))
         app.mount("/", gui_app)
-
-    # Read cookie files if not ignored
-    if not AppConfig.ignore_cookie_files:
-        read_cookie_files()
 
     if AppConfig.ignored_providers:
         for provider in AppConfig.ignored_providers:
@@ -701,6 +704,12 @@ class Api:
             HTTP_404_NOT_FOUND: {}
         })
         async def get_media(filename, request: Request, thumbnail: bool = False):
+            def get_timestamp(str):
+                m=re.match("^[0-9]+", str)
+                if m:
+                    return int(m.group(0))
+                else:
+                    raise ValueError("No timestamp found in filename")
             target = os.path.join(get_media_dir(), os.path.basename(filename))
             if thumbnail and has_pillow:
                 thumbnail_dir = os.path.join(get_media_dir(), "thumbnails")
@@ -711,14 +720,13 @@ class Api:
                     target = other_name
             ext = os.path.splitext(filename)[1][1:]
             mime_type = EXTENSIONS_MAP.get(ext)
+            stat_result = SimpleNamespace()
+            stat_result.st_size = 0
+            stat_result.st_mtime = get_timestamp(filename)
             if thumbnail and has_pillow and os.path.isfile(thumbnail):
-                stat_result = os.stat(thumbnail)
+                stat_result.st_size = os.stat(thumbnail).st_size
             elif not thumbnail and os.path.isfile(target):
-                stat_result = os.stat(target)
-            else:
-                stat_result = SimpleNamespace()
-                stat_result.st_size = 0
-                stat_result.st_mtime = 0
+                stat_result.st_size = os.stat(target).st_size
             headers = {
                 "cache-control": "public, max-age=31536000",
                 "last-modified": formatdate(stat_result.st_mtime, usegmt=True),

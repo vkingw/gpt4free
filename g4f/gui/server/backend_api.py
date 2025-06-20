@@ -39,6 +39,7 @@ from ...cookies import get_cookies_dir
 from ...image.copy_images import secure_filename, get_source_url, get_media_dir, copy_media
 from ... import ChatCompletion
 from ... import models
+from ... import debug
 from .api import Api
 
 logger = logging.getLogger(__name__)
@@ -125,21 +126,30 @@ class Backend_Api(Api):
                     media.append((url, None))
             if media:
                 json_data['media'] = media
-
+            if app.timeout:
+                json_data['timeout'] = app.timeout
             if app.demo and not json_data.get("provider"):
                 model = json_data.get("model")
                 if model != "default" and model in models.demo_models:
                     json_data["provider"] = random.choice(models.demo_models[model][1])
                 else:
                     json_data["provider"] = models.HuggingFace
+            if app.demo:
+                user = request.headers.get("Cf-Ipcountry", "")
+                ip = request.headers.get("X-Forwarded-For", "").split(":")[-1]
+                json_data["user"] = request.headers.get("x_user", f"{user}:{ip}")
+                json_data["referer"] = request.headers.get("referer", "")
+                json_data["user-agent"] = request.headers.get("user-agent", "")
+                if not json_data.get("referer") or "python" in json_data.get("user-agent", "").lower():
+                    return "Please use a browser to access the demo.", 403
             kwargs = self._prepare_conversation_kwargs(json_data)
             return self.app.response_class(
-                self._create_response_stream(
+                safe_iter_generator(self._create_response_stream(
                     kwargs,
                     json_data.get("provider"),
                     json_data.get("download_media", True),
                     tempfiles
-                ),
+                )),
                 mimetype='text/event-stream'
             )
 
@@ -218,7 +228,7 @@ class Backend_Api(Api):
             '/thumbnail/<path:name>': {
                 'function': self.serve_images,
                 'methods': ['GET']
-            }
+            },
         }
 
         @app.route('/backend-api/v2/create', methods=['GET', 'POST'])
@@ -352,7 +362,7 @@ class Backend_Api(Api):
                 suffix = os.path.splitext(filename)[1].lower()
                 copyfile = get_tempfile(file, suffix)
                 result = None
-                if has_markitdown:
+                if has_markitdown and not filename.endswith((".md", ".json")):
                     try:
                         language = request.headers.get("x-recognition-language")
                         md = MarkItDown()
@@ -433,14 +443,16 @@ class Backend_Api(Api):
                 return jsonify({"error": {"message": "Not found"}}), 404
             if search not in self.match_files:
                 self.match_files[search] = {}
+                found_mime_type = False
                 for root, _, files in os.walk(media_dir):
                     for file in files:
                         mime_type = is_allowed_extension(file)
                         if mime_type is not None:
                             mime_type = secure_filename(mime_type)
                             if safe_search[0] in mime_type:
+                                found_mime_type = True
                                 self.match_files[search][file] = self.match_files[search].get(file, 0) + 1
-                        for tag in safe_search:
+                        for tag in safe_search[1:] if found_mime_type else safe_search:
                             if tag in file.lower():
                                 self.match_files[search][file] = self.match_files[search].get(file, 0) + 1
                     break
