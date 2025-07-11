@@ -61,7 +61,6 @@ FOLLOWUPS_DEVELOPER_MESSAGE = [{
     "role": "developer",
     "content": "Provide conversation options.",
 }]
-
 class PollinationsAI(AsyncGeneratorProvider, ProviderModelMixin):
     label = "Pollinations AI"
     url = "https://pollinations.ai"
@@ -83,7 +82,7 @@ class PollinationsAI(AsyncGeneratorProvider, ProviderModelMixin):
     default_vision_model = default_model
     default_audio_model = "openai-audio"
     text_models = [default_model, "evil"]
-    image_models = [default_image_model, "kontext", "gptimage"]
+    image_models = [default_image_model, "turbo", "kontext", "gptimage", "transparent"]
     audio_models = {default_audio_model: []}
     vision_models = [default_vision_model]
     _models_loaded = False
@@ -121,15 +120,15 @@ class PollinationsAI(AsyncGeneratorProvider, ProviderModelMixin):
         """Get the internal model name from the user-provided model name."""
         if not model:
             return cls.default_model
-        
-        # Check if the model exists directly in our model lists
-        if model in cls.text_models or model in cls.image_models or model in cls.audio_models:
-            return model
-        
+
         # Check if there's an alias for this model
         if model in cls.model_aliases:
             return cls.model_aliases[model]
-        
+
+        # Check if the model exists directly in our model lists
+        if model in cls.text_models or model in cls.image_models or model in cls.audio_models:
+            return model
+
         # If no match is found, raise an error
         raise ModelNotFoundError(f"PollinationsAI: Model {model} not found")
 
@@ -254,8 +253,6 @@ class PollinationsAI(AsyncGeneratorProvider, ProviderModelMixin):
             cache = kwargs.get("action") == "next"
         if extra_body is None:
             extra_body = {}
-        # Load model list
-        cls.get_models()
         if not model:
             has_audio = "audio" in kwargs or "audio" in kwargs.get("modalities", [])
             if not has_audio and media is not None:
@@ -270,7 +267,7 @@ class PollinationsAI(AsyncGeneratorProvider, ProviderModelMixin):
             pass
         if model in cls.image_models:
             async for chunk in cls._generate_image(
-                model=model,
+                model="gptimage" if model == "transparent" else model,
                 prompt=format_media_prompt(messages, prompt),
                 media=media,
                 proxy=proxy,
@@ -283,7 +280,7 @@ class PollinationsAI(AsyncGeneratorProvider, ProviderModelMixin):
                 private=private,
                 enhance=enhance,
                 safe=safe,
-                transparent=transparent,
+                transparent=transparent or model == "transparent",
                 n=n,
                 referrer=referrer,
                 api_key=api_key
@@ -351,6 +348,7 @@ class PollinationsAI(AsyncGeneratorProvider, ProviderModelMixin):
             "private": str(private).lower(),
             "enhance": str(enhance).lower(),
             "safe": str(safe).lower(),
+            "referrer": referrer
         }
         if transparent:
             params["transparent"] = "true"
@@ -465,6 +463,7 @@ class PollinationsAI(AsyncGeneratorProvider, ProviderModelMixin):
                 response_format=response_format,
                 stream=stream,
                 seed=None if model =="grok" else seed,
+                referrer=referrer,
                 **extra_body
             )
             headers = {"referer": referrer}
