@@ -72,7 +72,7 @@ Curious to see what G4F can do? Dive into a live demonstration and visit the [of
      - [🎨 Image Generation](#-image-generation)
      - [🌐 Web Interface](#-web-interface)
      - [🖥️ Local Inference](https://github.com/gpt4free/g4f.dev/blob/main/docs/local.md)
-     - [🤖 Inference API](#-inference-api)
+     - [🤖 Interference API](#-interference-api)
      - [🛠️ Configuration](https://github.com/gpt4free/g4f.dev/blob/main/docs/configuration.md)
      - [📱 Run on Smartphone](#-run-on-smartphone)
      - [📘 Full Documentation for Python API](#-full-documentation-for-python-api)
@@ -133,7 +133,7 @@ docker run \
 To ensure the seamless operation of our application, please follow the instructions below. These steps are designed to guide you through the installation process on Windows operating systems.
 
 **Installation Steps:**
-1. **Download the Application**: Visit our [releases page](https://github.com/xtekky/gpt4free/releases/tag/0.4.2.0) and download the most recent version of the application, named `g4f.exe.zip`.
+1. **Download the Application**: Visit our [releases page](https://github.com/xtekky/gpt4free/releases/tag/0.5.7.0) and download the most recent version of the application, named `g4f.exe.zip`.
 2. **File Placement**: After downloading, locate the `.zip` file in your Downloads folder. Unpack it to a directory of your choice on your system, then execute the `g4f.exe` file to run the app.
 3. **Open GUI**: The app starts a web server with the GUI. Open your favorite browser and navigate to [http://localhost:8080/chat/](http://localhost:8080/chat/) to access the application interface.
 4. **Firewall Configuration (Hotfix)**: Upon installation, it may be necessary to adjust your Windows Firewall settings to allow the application to operate correctly. To do this, access your Windows Firewall settings and allow the application.
